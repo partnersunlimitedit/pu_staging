@@ -167,7 +167,7 @@
 
     var actions = el('div', 'dir-card-actions');
     var c = el('a', 'btn btn-primary', 'Contact this member');
-    c.href = CONTACT_URL + '?member=' + encodeURIComponent(m.company_name);
+    c.href = CONTACT_URL + '?member=' + encodeURIComponent(m.id) + '&company=' + encodeURIComponent(m.company_name);
     c.setAttribute('aria-label', 'Contact ' + m.company_name);
     actions.appendChild(c);
     li.appendChild(actions);
