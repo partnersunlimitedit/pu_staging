@@ -11,12 +11,20 @@
     storageKey: 'pu-portal-auth',
     // RPC / table names — change here if PU Data renames them
     rpc: {
-      isAdmin: 'is_admin'
-      // TODO(PU Data): confirm member self-read helper name, e.g. get_my_member
+      isAdmin: 'is_admin',
+      // Admin members (SECURITY DEFINER — use these for private cols + all writes)
+      adminListMembers: 'admin_list_members',
+      adminGetMember: 'admin_get_member',
+      adminInsertMember: 'admin_insert_member',
+      adminUpdateMember: 'admin_update_member',
+      adminSetConsent: 'admin_set_consent',
+      adminHideMember: 'admin_hide_member',
+      adminRemoveMember: 'admin_remove_member',
+      // Admin users
+      adminListUsers: 'admin_list_users',
+      adminSetAdmin: 'admin_set_admin'
+      // Member self-read (not confirmed yet)
       // getMyMember: 'get_my_member'
-      // TODO(PU Data): admin list/read helpers will replace direct selects
-      // adminListMembers: 'admin_list_members',
-      // adminGetMember: 'admin_get_member'
     },
     tables: {
       profiles: 'profiles',
@@ -26,7 +34,8 @@
     paths: {
       signIn: 'member-area.html',
       adminMembers: 'admin/members.html',
-      memberHome: 'member/index.html'
+      memberHome: 'member/index.html',
+      admins: 'admin/admins.html'
     }
   };
 
@@ -83,13 +92,34 @@
       msg.indexOf('policy') !== -1;
   }
 
+  function errorCode(err) {
+    return String((err && (err.code || err.error_code)) || '');
+  }
+
   function friendlyAuthError(err, fallback) {
     if (!err) return fallback || 'Something went wrong. Please try again.';
+    var code = errorCode(err);
+    // Branch on PostgREST/Postgres error.code (not HTTP status)
+    if (code === '42501') {
+      return 'You are not authorized to do that. Admin access is required.';
+    }
+    if (code === '23514') {
+      return 'Consent is required before a member can be active. Tick “Member has agreed to be listed”, or use Approve (which records consent).';
+    }
+    if (code === '22023') {
+      return 'That status is not valid. Use pending, active, or removed.';
+    }
+    if (code === 'P0002') {
+      return 'Record not found. It may have been removed, or the user has no login yet.';
+    }
+    if (code === '55000') {
+      return 'That change is not allowed: you cannot remove or demote the last remaining admin.';
+    }
     if (isMissingDbObject(err)) {
       return 'A required database function is not available yet. Please try again later.';
     }
     if (isRlsError(err)) {
-      return 'You do not have permission to do that yet. Access policies may still be missing.';
+      return 'You are not authorized to do that. Admin access is required.';
     }
     var msg = String(err.message || err.error_description || '');
     if (/invalid login|invalid credentials|email not confirmed/i.test(msg)) {
@@ -180,6 +210,7 @@
     createClient: createClient,
     isMissingDbObject: isMissingDbObject,
     isRlsError: isRlsError,
+    errorCode: errorCode,
     friendlyAuthError: friendlyAuthError,
     getSession: getSession,
     getUser: getUser,

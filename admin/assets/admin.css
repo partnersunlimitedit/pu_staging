@@ -455,3 +455,5 @@
   .admin-card:hover,
   .admin-btn-danger:hover { transform: none; }
 }
+
+.admin-note{font-size:.93rem;max-width:46rem;}

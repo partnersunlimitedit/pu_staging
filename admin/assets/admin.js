@@ -1,32 +1,18 @@
 /* Partners Unlimited — Admin portal
-   Auth + member CRUD against Supabase TEST. Database/RLS is the real gate.
-   Do not log or print member personal data. */
+   All private reads/writes go through SECURITY DEFINER RPCs (PUAuth.CONFIG.rpc).
+   Branch on error.code (not HTTP status). Never log member personal data. */
 (function () {
   'use strict';
 
   var page = document.body && document.body.getAttribute('data-admin-page');
-  if (!page || page === 'signin') {
-    // admin/index.html redirects to member-area; no local sign-in UI anymore
-    return;
-  }
+  if (!page || page === 'signin') return;
   if (!window.PUAuth || typeof supabase === 'undefined') return;
 
   var client = PUAuth.createClient();
+  var RPC = PUAuth.CONFIG.rpc;
   var SIGN_IN = PUAuth.urlFor('signIn');
   var MEMBER_HOME = PUAuth.urlFor('memberHome');
 
-  /* Columns for admin member reads.
-     TODO(PU Data): contact_person is becoming private — public directory must not
-     select it. Admin reads should eventually go through confirmed admin RPCs
-     (see PUAuth.CONFIG.rpc). Until then, keep the direct select in fetchMembersForAdmin(). */
-  var MEMBER_COLUMNS = [
-    'id', 'continent', 'region', 'country', 'city', 'ports',
-    'company_name', 'contact_person', 'website', 'description',
-    'email', 'status', 'consent_at', 'membership_tier', 'renewal_date',
-    'notes', 'created_at', 'updated_at'
-  ].join(',');
-
-  /* ---------- tiny helpers (no PII logging) ---------- */
   function $(id) { return document.getElementById(id); }
 
   function showAlert(el, message, kind) {
@@ -62,10 +48,7 @@
   }
 
   function textToPorts(text) {
-    return String(text || '')
-      .split(',')
-      .map(function (p) { return p.trim(); })
-      .filter(Boolean);
+    return String(text || '').split(',').map(function (p) { return p.trim(); }).filter(Boolean);
   }
 
   function statusBadge(status) {
@@ -82,7 +65,17 @@
     if (label) btn.textContent = label;
   }
 
-  /* ---------- auth gate ---------- */
+  function upsertCache(row) {
+    if (!row || row.id == null) return;
+    var idx = membersCache.findIndex(function (r) { return String(r.id) === String(row.id); });
+    if (idx >= 0) membersCache[idx] = row;
+    else membersCache.push(row);
+    membersCache.sort(function (a, b) {
+      return String(a.company_name || '').localeCompare(String(b.company_name || ''));
+    });
+  }
+
+  /* ---------- auth ---------- */
   async function requireAdmin() {
     var session = await PUAuth.getSession(client);
     if (!session) {
@@ -91,34 +84,71 @@
     }
     var ok = await PUAuth.checkIsAdmin(client);
     if (!ok) {
-      // Authenticated non-admin → member portal (single routing rule)
       location.replace(MEMBER_HOME);
       return null;
     }
     return { session: session, isAdmin: true };
   }
 
-  function signOut() {
-    return PUAuth.signOut(client);
+  function signOut() { return PUAuth.signOut(client); }
+
+  /* ---------- member RPCs (single place for admin data access) ---------- */
+  async function fetchMembersForAdmin() {
+    // TODO was: direct from('members') — private cols need RPCs. Do not use from() here.
+    return client.rpc(RPC.adminListMembers);
   }
 
-  /**
-   * Single place for admin member reads (list).
-   * TODO(PU Data): replace this direct .from('members').select(...) with the
-   * confirmed admin RPC once available (wire the name in PUAuth.CONFIG.rpc).
-   * contact_person is becoming private — do not reuse this select on public pages.
-   */
-  async function fetchMembersForAdmin() {
-    // Future: var rpcName = PUAuth.CONFIG.rpc.adminListMembers; if (rpcName) ...
-    return client
-      .from(PUAuth.CONFIG.tables.members)
-      .select(MEMBER_COLUMNS)
-      .order('company_name', { ascending: true });
+  async function fetchMemberById(id) {
+    return client.rpc(RPC.adminGetMember, { p_member_id: Number(id) });
+  }
+
+  function buildMemberArgs(form, opts) {
+    opts = opts || {};
+    var ports = textToPorts(form.portsText);
+    var args = {
+      p_continent: form.continent,
+      p_country: form.country,
+      p_company_name: form.company_name,
+      p_region: form.region == null ? '' : form.region,
+      p_city: form.city == null ? '' : form.city,
+      p_ports: ports,
+      p_contact_person: form.contact_person == null ? '' : form.contact_person,
+      p_website: form.website == null ? '' : form.website,
+      p_description: form.description == null ? '' : form.description,
+      p_email: form.email == null ? '' : form.email,
+      p_status: form.status || 'pending',
+      p_membership_tier: form.membership_tier == null ? '' : form.membership_tier,
+      p_notes: form.notes == null ? '' : form.notes,
+      p_set_consent_now: !!opts.setConsentNow
+    };
+    if (form.renewal_date) args.p_renewal_date = form.renewal_date;
+    else if (opts.includeNullRenewal) args.p_renewal_date = null;
+    return args;
+  }
+
+  function readForm() {
+    return {
+      company_name: ($('m-company').value || '').trim(),
+      contact_person: ($('m-contact').value || '').trim(),
+      continent: $('m-continent').value || '',
+      region: ($('m-region').value || '').trim(),
+      country: ($('m-country').value || '').trim(),
+      city: ($('m-city').value || '').trim(),
+      portsText: $('m-ports').value || '',
+      website: ($('m-website').value || '').trim(),
+      description: ($('m-description').value || '').trim(),
+      email: ($('m-email').value || '').trim(),
+      membership_tier: ($('m-tier').value || '').trim(),
+      renewal_date: $('m-renewal').value || '',
+      status: $('m-status').value || 'pending',
+      notes: ($('m-notes').value || '').trim(),
+      consentChecked: !!($('m-consent') && $('m-consent').checked)
+    };
   }
 
   /* ---------- MEMBERS PAGE ---------- */
   var membersCache = [];
-  var currentMember = null; // in-memory edit buffer; never console.log it
+  var currentMember = null;
   var listFilters = { search: '', status: '' };
 
   function syncApproveButton() {
@@ -126,38 +156,11 @@
     var consent = $('m-consent');
     if (!approve) return;
     var hasConsent = !!(consent && consent.checked);
+    // Approve uses admin_set_consent(..., true) which can stamp consent — allow when checked OR already has consent_at
     approve.disabled = !hasConsent;
     approve.title = hasConsent
-      ? 'Set status to active'
+      ? 'Record consent (if needed) and set status to active'
       : 'Tick “Member has agreed to be listed” before approving';
-  }
-
-  function readForm() {
-    var consentChecked = $('m-consent').checked;
-    var existingConsent = currentMember && currentMember.consent_at;
-    var consentAt = null;
-    if (consentChecked) {
-      consentAt = existingConsent || new Date().toISOString();
-    } else {
-      consentAt = null;
-    }
-    return {
-      company_name: ($('m-company').value || '').trim(),
-      contact_person: ($('m-contact').value || '').trim() || null,
-      continent: $('m-continent').value || null,
-      region: ($('m-region').value || '').trim() || null,
-      country: ($('m-country').value || '').trim(),
-      city: ($('m-city').value || '').trim() || null,
-      ports: textToPorts($('m-ports').value),
-      website: ($('m-website').value || '').trim() || null,
-      description: ($('m-description').value || '').trim() || null,
-      email: ($('m-email').value || '').trim() || null,
-      membership_tier: ($('m-tier').value || '').trim() || null,
-      renewal_date: $('m-renewal').value || null,
-      status: $('m-status').value || 'pending',
-      consent_at: consentAt,
-      notes: ($('m-notes').value || '').trim() || null
-    };
   }
 
   function fillForm(m, isNew) {
@@ -191,12 +194,10 @@
     if (isNew) {
       hideBtn.hidden = true;
       removeBtn.hidden = true;
-      $('admin-approve-btn').hidden = false;
     } else {
       hideBtn.hidden = false;
       removeBtn.hidden = false;
       hideBtn.disabled = false;
-      // Hide = status back to pending (product decision)
       if (m && m.status === 'active') {
         hideBtn.textContent = 'Hide';
         hideBtn.title = 'Set status to pending (hide from public directory)';
@@ -208,17 +209,15 @@
         hideBtn.disabled = true;
         hideBtn.title = 'Already pending (hidden from public directory)';
       }
-      $('admin-approve-btn').hidden = false;
     }
+    $('admin-approve-btn').hidden = false;
     syncApproveButton();
     showAlert($('admin-detail-alert'), '', null);
   }
 
   function showView(name) {
-    var list = $('admin-list-view');
-    var detail = $('admin-detail-view');
-    if (list) list.hidden = name !== 'list';
-    if (detail) detail.hidden = name !== 'detail';
+    $('admin-list-view').hidden = name !== 'list';
+    $('admin-detail-view').hidden = name !== 'detail';
   }
 
   function setListState(which) {
@@ -227,17 +226,12 @@
     $('admin-list-error').hidden = which !== 'error';
     var showRows = which === 'grid';
     var isNarrow = window.matchMedia('(max-width: 900px)').matches;
-    $('admin-table-wrap').hidden = !(showRows && !isNarrow);
-    $('admin-cards').hidden = !(showRows && isNarrow);
-    // Keep both populated; CSS also toggles, but hidden attrs keep a11y clean
     if (showRows) {
-      if (isNarrow) {
-        $('admin-cards').hidden = false;
-        $('admin-table-wrap').hidden = true;
-      } else {
-        $('admin-table-wrap').hidden = false;
-        $('admin-cards').hidden = true;
-      }
+      $('admin-table-wrap').hidden = isNarrow;
+      $('admin-cards').hidden = !isNarrow;
+    } else {
+      $('admin-table-wrap').hidden = true;
+      $('admin-cards').hidden = true;
     }
   }
 
@@ -255,14 +249,24 @@
     });
   }
 
-  function openMember(id) {
-    var m = membersCache.find(function (row) { return String(row.id) === String(id); });
-    if (!m) {
-      showAlert($('admin-alert'), 'Member not found in the current list.', 'error');
+  async function openMember(id) {
+    showView('detail');
+    showAlert($('admin-detail-alert'), 'Loading…', 'info');
+    var res = await fetchMemberById(id);
+    if (res.error) {
+      showAlert($('admin-detail-alert'), friendlyError(res.error, 'Could not load member.'), 'error');
+      var cached = membersCache.find(function (row) { return String(row.id) === String(id); });
+      if (cached) fillForm(cached, false);
       return;
     }
-    fillForm(m, false);
-    showView('detail');
+    var row = res.data;
+    if (Array.isArray(row)) row = row[0];
+    if (!row) {
+      showAlert($('admin-detail-alert'), 'Member not found.', 'error');
+      return;
+    }
+    upsertCache(row);
+    fillForm(row, false);
     if (history.replaceState) {
       history.replaceState(null, '', 'members.html?id=' + encodeURIComponent(id));
     }
@@ -270,11 +274,7 @@
   }
 
   function openNew() {
-    fillForm({
-      status: 'pending',
-      consent_at: null,
-      ports: []
-    }, true);
+    fillForm({ status: 'pending', consent_at: null, ports: [] }, true);
     showView('detail');
     if (history.replaceState) history.replaceState(null, '', 'members.html?new=1');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -307,7 +307,7 @@
       : 'No members loaded';
 
     if (!rows.length) {
-      setListState(membersCache.length ? 'empty' : 'empty');
+      setListState('empty');
       return;
     }
 
@@ -315,13 +315,7 @@
       var tr = document.createElement('tr');
       tr.tabIndex = 0;
       tr.setAttribute('data-id', m.id);
-      tr.innerHTML =
-        '<td class="company"></td>' +
-        '<td class="loc"></td>' +
-        '<td class="st"></td>' +
-        '<td class="tier"></td>' +
-        '<td class="ren"></td>' +
-        '<td class="upd"></td>';
+      tr.innerHTML = '<td class="company"></td><td class="loc"></td><td class="st"></td><td class="tier"></td><td class="ren"></td><td class="upd"></td>';
       tr.querySelector('.company').textContent = m.company_name || '—';
       tr.querySelector('.loc').textContent = [m.city, m.country].filter(Boolean).join(', ') || '—';
       tr.querySelector('.st').appendChild(statusBadge(m.status));
@@ -336,7 +330,6 @@
 
       var li = document.createElement('li');
       li.className = 'admin-card';
-      li.setAttribute('data-id', m.id);
       li.tabIndex = 0;
       var top = document.createElement('div');
       top.className = 'admin-card-top';
@@ -350,22 +343,10 @@
       var loc = document.createElement('div');
       loc.textContent = [m.city, m.country].filter(Boolean).join(', ') || 'No location';
       meta.appendChild(loc);
-      if (m.membership_tier) {
-        var tier = document.createElement('div');
-        tier.textContent = 'Tier: ' + m.membership_tier;
-        meta.appendChild(tier);
-      }
-      var upd = document.createElement('div');
-      upd.textContent = 'Updated ' + fmtDate(m.updated_at);
-      meta.appendChild(upd);
       li.appendChild(meta);
       li.addEventListener('click', function () { openMember(m.id); });
-      li.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openMember(m.id); }
-      });
       cards.appendChild(li);
     });
-
     setListState('grid');
   }
 
@@ -373,78 +354,64 @@
     setListState('loading');
     $('admin-count').textContent = 'Loading…';
     showAlert($('admin-alert'), '', null);
-
     var res = await fetchMembersForAdmin();
-
     if (res.error) {
       membersCache = [];
       $('admin-list-error-msg').textContent = friendlyError(
         res.error,
-        'Could not read members. Private columns need admin SELECT policies.'
+        'Could not load members via admin_list_members.'
       );
       setListState('error');
       $('admin-count').textContent = '';
       return;
     }
-
-    membersCache = Array.isArray(res.data) ? res.data : [];
+    membersCache = Array.isArray(res.data) ? res.data : (res.data ? [res.data] : []);
     renderList();
   }
 
   async function saveMember(extra) {
     var alertEl = $('admin-detail-alert');
     showAlert(alertEl, '', null);
-    var payload = readForm();
-    if (extra && typeof extra === 'object') {
-      Object.keys(extra).forEach(function (k) { payload[k] = extra[k]; });
-    }
+    var form = readForm();
+    if (extra && extra.status) form.status = extra.status;
 
-    if (!payload.company_name || !payload.continent || !payload.country) {
+    if (!form.company_name || !form.continent || !form.country) {
       showAlert(alertEl, 'Company name, continent and country are required.', 'error');
-      return false;
-    }
-    if (payload.status === 'active' && !payload.consent_at) {
-      showAlert(alertEl, 'Cannot set status to active without consent. Tick the consent box first.', 'error');
-      $('m-status').value = (currentMember && currentMember.status) || 'pending';
       return false;
     }
 
     var id = ($('m-id').value || '').trim();
+    var hadConsent = !!(currentMember && currentMember.consent_at);
+    var setConsentNow = !!(form.consentChecked && !hadConsent) || !!(extra && extra.setConsentNow);
+    // If unchecking consent on update: leave consent_at as-is (RPC can't clear via null); UI note only
+    var args = buildMemberArgs(form, { setConsentNow: setConsentNow });
     var saveBtn = $('admin-save-btn');
     setBusy(saveBtn, true, 'Saving…');
 
     try {
       var res;
       if (id) {
-        res = await client.from(PUAuth.CONFIG.tables.members).update(payload).eq('id', id).select(MEMBER_COLUMNS).maybeSingle();
+        args.p_member_id = Number(id);
+        res = await client.rpc(RPC.adminUpdateMember, args);
       } else {
-        if (!payload.status) payload.status = 'pending';
-        res = await client.from(PUAuth.CONFIG.tables.members).insert(payload).select(MEMBER_COLUMNS).maybeSingle();
+        res = await client.rpc(RPC.adminInsertMember, args);
       }
-
       if (res.error) {
         showAlert(alertEl, friendlyError(res.error, 'Could not save member.'), 'error');
         setBusy(saveBtn, false, 'Save');
         return false;
       }
-
       var saved = res.data;
+      if (Array.isArray(saved)) saved = saved[0];
       if (saved) {
-        // Refresh cache entry without dumping fields to console
-        var idx = membersCache.findIndex(function (r) { return String(r.id) === String(saved.id); });
-        if (idx >= 0) membersCache[idx] = saved;
-        else membersCache.push(saved);
-        membersCache.sort(function (a, b) {
-          return String(a.company_name || '').localeCompare(String(b.company_name || ''));
-        });
+        upsertCache(saved);
         fillForm(saved, false);
         showAlert(alertEl, 'Saved.', 'ok');
         if (history.replaceState) {
           history.replaceState(null, '', 'members.html?id=' + encodeURIComponent(saved.id));
         }
       } else {
-        // Update succeeded but select blocked — reload list
-        showAlert(alertEl, 'Saved (reload list to refresh).', 'ok');
+        showAlert(alertEl, 'Saved.', 'ok');
         await loadMembers();
       }
       setBusy(saveBtn, false, 'Save');
@@ -456,77 +423,36 @@
     }
   }
 
-  function openModal() {
-    var modal = $('admin-modal');
-    modal.hidden = false;
-    $('admin-modal-confirm').focus();
-  }
-  function closeModal() {
-    $('admin-modal').hidden = true;
-  }
+  function openModal() { $('admin-modal').hidden = false; $('admin-modal-confirm').focus(); }
+  function closeModal() { $('admin-modal').hidden = true; }
 
   async function initMembers() {
     var gate = $('admin-gate');
-    var denied = $('admin-denied');
     gate.hidden = false;
-
     var auth = await requireAdmin();
     gate.hidden = true;
-    if (!auth) return; // redirected
+    if (!auth) return;
 
-    if (!auth.isAdmin) {
-      denied.hidden = false;
-      $('admin-denied-signout').addEventListener('click', signOut);
-      // Still wire sign-out in header if present
-      var so = $('admin-signout-btn');
-      if (so) so.addEventListener('click', signOut);
-      return;
-    }
-
-    denied.hidden = true;
+    $('admin-denied').hidden = true;
     showView('list');
 
-    // Wire chrome
     $('admin-signout-btn').addEventListener('click', signOut);
     $('admin-add-btn').addEventListener('click', openNew);
-    $('admin-back-btn').addEventListener('click', function () {
-      backToList(true);
-      renderList();
-    });
+    $('admin-back-btn').addEventListener('click', function () { backToList(true); renderList(); });
     $('admin-list-retry').addEventListener('click', loadMembers);
     $('admin-empty-reset').addEventListener('click', function () {
-      listFilters.search = '';
-      listFilters.status = '';
-      $('f-search').value = '';
-      $('f-status').value = '';
+      listFilters.search = ''; listFilters.status = '';
+      $('f-search').value = ''; $('f-status').value = '';
       renderList();
     });
-
-    $('f-search').addEventListener('input', function () {
-      listFilters.search = $('f-search').value;
-      renderList();
-    });
-    $('f-status').addEventListener('change', function () {
-      listFilters.status = $('f-status').value;
-      renderList();
-    });
+    $('f-search').addEventListener('input', function () { listFilters.search = $('f-search').value; renderList(); });
+    $('f-status').addEventListener('change', function () { listFilters.status = $('f-status').value; renderList(); });
     $('f-reset').addEventListener('click', function () {
-      listFilters.search = '';
-      listFilters.status = '';
-      $('f-search').value = '';
-      $('f-status').value = '';
+      listFilters.search = ''; listFilters.status = '';
+      $('f-search').value = ''; $('f-status').value = '';
       renderList();
     });
-
-    $('m-consent').addEventListener('change', function () {
-      syncApproveButton();
-      // If user picks active in status select without consent, keep approve disabled
-    });
-    $('m-status').addEventListener('change', function () {
-      if ($('m-status').value === 'active' && !$('m-consent').checked) {
-        showAlert($('admin-detail-alert'), 'Consent is required for Active. Tick the consent box, or use Approve.', 'info');
-      }
-    });
+    $('m-consent').addEventListener('change', syncApproveButton);
 
     $('admin-member-form').addEventListener('submit', async function (ev) {
       ev.preventDefault();
@@ -534,23 +460,50 @@
     });
 
     $('admin-approve-btn').addEventListener('click', async function () {
+      var alertEl = $('admin-detail-alert');
       if (!$('m-consent').checked) {
-        showAlert($('admin-detail-alert'), 'Tick “Member has agreed to be listed” before approving.', 'error');
+        showAlert(alertEl, 'Tick “Member has agreed to be listed” before approving.', 'error');
         return;
       }
-      // Ensure consent_at is set now if newly checked
-      var ok = await saveMember({ status: 'active' });
-      if (ok) {
-        $('m-status').value = 'active';
-        showAlert($('admin-detail-alert'), 'Member approved (status = active).', 'ok');
+      var id = ($('m-id').value || '').trim();
+      if (!id) {
+        // New row: save as active with consent
+        var ok = await saveMember({ status: 'active', setConsentNow: true });
+        if (ok) showAlert(alertEl, 'Member approved (status = active).', 'ok');
+        return;
       }
+      setBusy($('admin-approve-btn'), true, 'Approving…');
+      var res = await client.rpc(RPC.adminSetConsent, {
+        p_member_id: Number(id),
+        p_activate: true
+      });
+      setBusy($('admin-approve-btn'), false, 'Approve');
+      if (res.error) {
+        showAlert(alertEl, friendlyError(res.error, 'Could not approve member.'), 'error');
+        return;
+      }
+      var row = res.data;
+      if (Array.isArray(row)) row = row[0];
+      if (row) { upsertCache(row); fillForm(row, false); }
+      showAlert(alertEl, 'Member approved (consent recorded, status = active).', 'ok');
+      syncApproveButton();
     });
 
     $('admin-hide-btn').addEventListener('click', async function () {
-      // Hide = set status back to pending (product decision)
-      $('m-status').value = 'pending';
-      var ok = await saveMember({ status: 'pending' });
-      if (ok) showAlert($('admin-detail-alert'), 'Hidden from directory (status = pending).', 'ok');
+      var alertEl = $('admin-detail-alert');
+      var id = ($('m-id').value || '').trim();
+      if (!id) return;
+      setBusy($('admin-hide-btn'), true, 'Updating…');
+      var res = await client.rpc(RPC.adminHideMember, { p_member_id: Number(id) });
+      setBusy($('admin-hide-btn'), false, 'Hide');
+      if (res.error) {
+        showAlert(alertEl, friendlyError(res.error, 'Could not hide member.'), 'error');
+        return;
+      }
+      var row = res.data;
+      if (Array.isArray(row)) row = row[0];
+      if (row) { upsertCache(row); fillForm(row, false); }
+      showAlert(alertEl, 'Hidden from directory (status = pending).', 'ok');
     });
 
     $('admin-remove-btn').addEventListener('click', openModal);
@@ -559,38 +512,172 @@
     });
     $('admin-modal-confirm').addEventListener('click', async function () {
       closeModal();
-      $('m-status').value = 'removed';
-      var ok = await saveMember({ status: 'removed' });
-      if (ok) showAlert($('admin-detail-alert'), 'Member removed (soft delete; status = removed).', 'ok');
+      var alertEl = $('admin-detail-alert');
+      var id = ($('m-id').value || '').trim();
+      if (!id) return;
+      var res = await client.rpc(RPC.adminRemoveMember, {
+        p_member_id: Number(id),
+        p_note: 'Removed via admin portal'
+      });
+      if (res.error) {
+        showAlert(alertEl, friendlyError(res.error, 'Could not remove member.'), 'error');
+        return;
+      }
+      var row = res.data;
+      if (Array.isArray(row)) row = row[0];
+      if (row) { upsertCache(row); fillForm(row, false); }
+      showAlert(alertEl, 'Member removed (soft delete; status = removed).', 'ok');
     });
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape' && !$('admin-modal').hidden) closeModal();
     });
-
     window.addEventListener('resize', function () {
       if (!$('admin-list-view').hidden && membersCache.length) renderList();
     });
 
-    // Restore filters / deep link from URL
     var params = new URLSearchParams(location.search);
-    if (params.get('q')) {
-      listFilters.search = params.get('q');
-      $('f-search').value = listFilters.search;
-    }
-    if (params.get('status')) {
-      listFilters.status = params.get('status');
-      $('f-status').value = listFilters.status;
-    }
+    if (params.get('q')) { listFilters.search = params.get('q'); $('f-search').value = listFilters.search; }
+    if (params.get('status')) { listFilters.status = params.get('status'); $('f-status').value = listFilters.status; }
 
     await loadMembers();
-
-    if (params.get('new') === '1') {
-      openNew();
-    } else if (params.get('id')) {
-      openMember(params.get('id'));
-    }
+    if (params.get('new') === '1') openNew();
+    else if (params.get('id')) await openMember(params.get('id'));
   }
 
-  /* ---------- boot ---------- */
+  /* ---------- ADMINS PAGE ---------- */
+  var usersCache = [];
+  var pendingRoleChange = null;
+
+  async function loadUsers() {
+    var loading = $('admins-loading');
+    var errEl = $('admins-error');
+    var empty = $('admins-empty');
+    var wrap = $('admins-table-wrap');
+    if (loading) loading.hidden = false;
+    if (errEl) errEl.hidden = true;
+    if (empty) empty.hidden = true;
+    if (wrap) wrap.hidden = true;
+
+    var res = await client.rpc(RPC.adminListUsers);
+    if (loading) loading.hidden = true;
+    if (res.error) {
+      if (errEl) {
+        errEl.hidden = false;
+        $('admins-error-msg').textContent = friendlyError(res.error, 'Could not load users.');
+      }
+      return;
+    }
+    usersCache = Array.isArray(res.data) ? res.data : [];
+    renderUsers();
+  }
+
+  function renderUsers() {
+    var tbody = $('admins-table-body');
+    var cards = $('admins-cards');
+    var wrap = $('admins-table-wrap');
+    var empty = $('admins-empty');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    if (cards) cards.innerHTML = '';
+
+    if (!usersCache.length) {
+      if (empty) empty.hidden = false;
+      if (wrap) wrap.hidden = true;
+      return;
+    }
+    if (empty) empty.hidden = true;
+    if (wrap) wrap.hidden = false;
+
+    var isNarrow = window.matchMedia('(max-width: 900px)').matches;
+    if (isNarrow && cards) {
+      wrap.hidden = true;
+      cards.hidden = false;
+    } else if (cards) {
+      cards.hidden = true;
+    }
+
+    usersCache.forEach(function (u) {
+      var tr = document.createElement('tr');
+      tr.innerHTML = '<td class="em"></td><td class="nm"></td><td class="rl"></td><td class="cr"></td><td class="ac"></td>';
+      tr.querySelector('.em').textContent = u.email || '—';
+      tr.querySelector('.nm').textContent = u.full_name || '—';
+      var badge = document.createElement('span');
+      badge.className = 'admin-badge ' + (u.role === 'admin' ? 'is-active' : 'is-pending');
+      badge.textContent = u.role || 'member';
+      tr.querySelector('.rl').appendChild(badge);
+      tr.querySelector('.cr').textContent = fmtDate(u.created_at);
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = u.role === 'admin' ? 'btn admin-btn-danger' : 'btn btn-outline';
+      btn.style.padding = '.45rem 1rem';
+      btn.style.fontSize = '.85rem';
+      btn.textContent = u.role === 'admin' ? 'Revoke admin' : 'Grant admin';
+      btn.addEventListener('click', function () {
+        openRoleModal(u, u.role !== 'admin');
+      });
+      tr.querySelector('.ac').appendChild(btn);
+      tbody.appendChild(tr);
+    });
+
+    $('admins-count').textContent = usersCache.length + ' user' + (usersCache.length === 1 ? '' : 's');
+  }
+
+  function openRoleModal(user, makeAdmin) {
+    pendingRoleChange = { user: user, makeAdmin: makeAdmin };
+    $('admins-modal-title').textContent = makeAdmin ? 'Grant admin?' : 'Revoke admin?';
+    // Avoid dumping email into long-lived strings in logs; show in UI only
+    $('admins-modal-body').textContent = makeAdmin
+      ? 'Grant admin access to this user? They must already have a login.'
+      : 'Revoke admin access for this user? The last remaining admin cannot be demoted.';
+    $('admins-modal').hidden = false;
+  }
+
+  function closeRoleModal() {
+    pendingRoleChange = null;
+    $('admins-modal').hidden = true;
+  }
+
+  async function confirmRoleChange() {
+    if (!pendingRoleChange) return;
+    var u = pendingRoleChange.user;
+    var makeAdmin = pendingRoleChange.makeAdmin;
+    closeRoleModal();
+    showAlert($('admins-alert'), '', null);
+    var res = await client.rpc(RPC.adminSetAdmin, {
+      p_user_id: u.id,
+      p_is_admin: makeAdmin
+    });
+    if (res.error) {
+      showAlert($('admins-alert'), friendlyError(res.error, 'Could not update admin role.'), 'error');
+      return;
+    }
+    showAlert($('admins-alert'), makeAdmin ? 'Admin access granted.' : 'Admin access revoked.', 'ok');
+    await loadUsers();
+  }
+
+  async function initAdmins() {
+    var gate = $('admin-gate');
+    if (gate) gate.hidden = false;
+    var auth = await requireAdmin();
+    if (gate) gate.hidden = true;
+    if (!auth) return;
+
+    $('admin-signout-btn').addEventListener('click', signOut);
+    $('admins-retry').addEventListener('click', loadUsers);
+    $('admins-modal').querySelectorAll('[data-modal-close]').forEach(function (el) {
+      el.addEventListener('click', closeRoleModal);
+    });
+    $('admins-modal-confirm').addEventListener('click', confirmRoleChange);
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !$('admins-modal').hidden) closeRoleModal();
+    });
+    window.addEventListener('resize', function () {
+      if (usersCache.length) renderUsers();
+    });
+
+    await loadUsers();
+  }
+
   if (page === 'members') initMembers();
+  else if (page === 'admins') initAdmins();
 })();
