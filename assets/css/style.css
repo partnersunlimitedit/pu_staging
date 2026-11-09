@@ -1091,3 +1091,17 @@ html.js [data-reveal].is-visible {
   .footer-grid { grid-template-columns: 1fr; }
   .ma-actions .btn { padding: .6rem 1.1rem; font-size: .88rem; }
 }
+
+/* ============================================================
+   Nav fit for 9 items (added with Member Directory link)
+   Keeps every link on one line; switches to the menu button
+   a little earlier so the bar never wraps.
+   ============================================================ */
+.main-nav ul { gap: .1rem; }
+.main-nav a { white-space: nowrap; padding-inline: .62rem; }
+.main-nav .nav-cta { margin-left: .4rem; padding-inline: 1.05rem; }
+
+@media (max-width: 1219px) {
+  .main-nav { display: none; }
+  .nav-toggle { display: inline-flex; }
+}
