@@ -164,3 +164,6 @@
   border-radius: 12px;
 }
 .dir-notice[hidden] { display: none; }
+
+/* Long company names (often all caps) */
+.dir-card h3 { overflow-wrap: anywhere; hyphens: auto; }

@@ -91,8 +91,11 @@
     els.grid.hidden = which !== 'grid';
   }
 
+  var filtersOn = false;
   function setFiltersEnabled(on) {
+    filtersOn = on;
     [els.continent, els.country, els.place, els.reset].forEach(function (c) { c.disabled = !on; });
+    if (on) updatePlaceState();
   }
 
   /* ---------- filters ---------- */
@@ -113,6 +116,14 @@
     var places = [];
     inCountry.forEach(function (m) { places = places.concat(placesOf(m)); });
     fillSelect(els.place, 'All cities & ports', uniqSorted(places), f.place);
+    updatePlaceState();
+  }
+
+  // City / Port has nothing to choose until members have cities or ports recorded.
+  function updatePlaceState() {
+    var none = els.place.options.length <= 1;
+    if (filtersOn) els.place.disabled = none;
+    els.place.title = none ? 'No cities or ports listed for this selection yet' : '';
   }
 
   // Select the option matching `want` regardless of letter case; returns false if none.
