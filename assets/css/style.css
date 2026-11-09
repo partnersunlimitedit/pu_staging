@@ -1105,3 +1105,27 @@ html.js [data-reveal].is-visible {
   .main-nav { display: none; }
   .nav-toggle { display: inline-flex; }
 }
+
+/* Skip-to-content link (keyboard users) */
+.skip-link {
+  position: absolute;
+  top: .75rem;
+  left: .75rem;
+  z-index: 100;
+  padding: .7rem 1.3rem;
+  border-radius: 999px;
+  background: var(--brand);
+  color: #fff;
+  font-weight: 600;
+  font-size: .95rem;
+  box-shadow: 0 10px 24px -10px rgba(124, 58, 237, .55);
+  transform: translateY(-200%);
+  transition: transform .2s ease;
+}
+.skip-link:focus, .skip-link:focus-visible { transform: none; color: #fff; outline-offset: 3px; }
+main:focus { outline: none; }
+
+/* Footer without the (hidden) Follow Us column */
+@media (min-width: 1025px) {
+  .footer-grid { grid-template-columns: 1.4fr .9fr .8fr 1.4fr; }
+}
