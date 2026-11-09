@@ -144,13 +144,20 @@
     var li = el('li', 'dir-card');
     var loc = el('p', 'dir-card-loc');
     loc.innerHTML = pinSvg;
-    loc.appendChild(document.createTextNode([m.city, m.country].filter(Boolean).join(', ')));
+    var locParts = [m.city, m.country].map(function (v) { return (v || '').trim(); }).filter(Boolean);
+    var locText = locParts.join(', ');
+    loc.appendChild(document.createTextNode(locText));
     li.appendChild(loc);
     li.appendChild(el('h3', null, m.company_name));
 
     var dl = el('dl', 'dir-meta');
+    // Skip empty rows and rows that only repeat the location label above the name.
+    function repeatsLocation(v) {
+      v = String(v || '').trim();
+      return !!v && (eqi(v, locText) || locParts.some(function (part) { return eqi(v, part); }));
+    }
     function row(label, value, node) {
-      if (!value && !node) return;
+      if (!node && (!value || !String(value).trim() || repeatsLocation(value))) return;
       var d = el('div');
       d.appendChild(el('dt', null, label));
       var dd = el('dd', null, node ? null : value);
@@ -158,8 +165,7 @@
       d.appendChild(dd);
       dl.appendChild(d);
     }
-    row('Country', m.country);
-    row('City', m.city);
+    row('City', m.city); // shown only if it isn't already in the location label
     row('Ports', Array.isArray(m.ports) && m.ports.length ? m.ports.join(', ') : '');
     var u = safeUrl(m.website);
     if (u) {
@@ -170,9 +176,11 @@
       a.setAttribute('aria-label', 'Website of ' + m.company_name + ' (opens in a new tab)');
       row('Website', null, a);
     }
-    li.appendChild(dl);
+    if (dl.children.length) li.appendChild(dl);
+    else li.classList.add('is-compact');
 
-    if (m.description) li.appendChild(el('p', 'dir-card-desc', m.description));
+    var desc = (m.description || '').trim();
+    if (desc) li.appendChild(el('p', 'dir-card-desc', desc));
 
     return li;
   }
