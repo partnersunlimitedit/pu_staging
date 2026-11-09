@@ -10,7 +10,9 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/style.css">
+<link rel="stylesheet" href="assets/css/contact.css">
 <script src="assets/js/main.js" defer></script>
+<script src="assets/js/contact.js" defer></script>
 </head>
 <body>
 
@@ -85,38 +87,63 @@
       </div>
 
       <div class="form-card" data-reveal>
-        <form action="https://www.partnersunlimited.net/index.php?route=information/contact" method="post" enctype="multipart/form-data">
+        <form id="contact-form" action="#" method="post" novalidate>
           <fieldset>
             <legend>Contact Form</legend>
-            <div class="form-grid">
+            <div class="cf-member" id="cf-member" hidden>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+              <span>Your enquiry is about <strong id="cf-member-name"></strong>.</span>
+            </div>
+            <div class="form-grid cf-grid">
               <div class="field">
                 <label for="input-name">Your Name <span class="req">*</span></label>
-                <input type="text" name="name" id="input-name" required>
+                <input type="text" name="name" id="input-name" autocomplete="name" maxlength="200" required aria-describedby="err-name">
+                <p class="cf-error" id="err-name" hidden>Please enter your name.</p>
+              </div>
+              <div class="field">
+                <label for="input-company">Company</label>
+                <input type="text" name="company" id="input-company" autocomplete="organization" maxlength="200">
               </div>
               <div class="field">
                 <label for="input-email">E-Mail Address <span class="req">*</span></label>
-                <input type="email" name="email" id="input-email" required>
+                <input type="email" name="email" id="input-email" autocomplete="email" maxlength="254" required aria-describedby="err-email">
+                <p class="cf-error" id="err-email" hidden>Please enter a valid e-mail address.</p>
               </div>
               <div class="field">
-                <label for="input-enquiry">Enquiry <span class="req">*</span></label>
-                <textarea name="enquiry" rows="10" id="input-enquiry" required></textarea>
+                <label for="input-phone">Telephone</label>
+                <input type="text" name="phone" id="input-phone" autocomplete="tel" inputmode="tel" maxlength="50">
               </div>
-              <fieldset>
-                <legend>Captcha</legend>
-                <div class="field">
-                  <label for="input-captcha">Enter the code in the box below <span class="req">*</span></label>
-                  <div class="captcha-row">
-                    <input type="text" name="captcha" id="input-captcha" required>
-                    <img src="assets/img/captcha.jpg" alt="Captcha code" width="150" height="35">
-                  </div>
-                </div>
-              </fieldset>
+              <div class="field">
+                <label for="input-country">Country</label>
+                <input type="text" name="country" id="input-country" autocomplete="country-name" maxlength="100">
+              </div>
+              <div class="field">
+                <label for="input-subject">Subject</label>
+                <input type="text" name="subject" id="input-subject" maxlength="300">
+              </div>
+              <div class="field cf-full">
+                <label for="input-enquiry">Enquiry <span class="req">*</span></label>
+                <textarea name="enquiry" rows="10" id="input-enquiry" maxlength="5000" required aria-describedby="err-enquiry cf-chars"></textarea>
+                <p class="cf-hint" id="cf-chars">Up to 5,000 characters.</p>
+                <p class="cf-error" id="err-enquiry" hidden>Please enter your enquiry.</p>
+              </div>
+              <div class="cf-hp" aria-hidden="true">
+                <label for="input-website">Leave this field empty</label>
+                <input type="text" name="website" id="input-website" tabindex="-1" autocomplete="off">
+              </div>
             </div>
           </fieldset>
+          <div class="cf-status" id="cf-status" role="status" aria-live="polite" hidden></div>
           <div class="form-actions">
-            <input class="btn btn-primary" type="submit" value="Submit">
+            <button class="btn btn-primary" type="submit" id="cf-submit">Submit</button>
           </div>
         </form>
+        <div class="cf-success" id="cf-success" hidden tabindex="-1">
+          <span class="cf-success-icon" aria-hidden="true"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+          <h2>Thanks, we&rsquo;ve received your message and will reply soon</h2>
+          <p>A member of the Partners Unlimited team will get back to you by e-mail.</p>
+          <button type="button" class="btn btn-outline" id="cf-again">Send another message</button>
+        </div>
       </div>
     </div>
   </section>
