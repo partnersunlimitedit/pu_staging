@@ -189,8 +189,12 @@
 
     var actions = el('div', 'dir-card-actions');
     var c = el('a', 'btn btn-primary', 'Contact this member');
-    c.href = CONTACT_URL + '?member=' + encodeURIComponent(m.id) + '&company=' + encodeURIComponent(m.company_name);
-    c.setAttribute('aria-label', 'Contact ' + m.company_name);
+    // Opens the visitor's e-mail app addressed to the PU team (never the member's own e-mail).
+    // Falls back to the contact page if the e-mail helper didn't load.
+    c.href = window.PUEmail
+      ? PUEmail.mailto(PUEmail.memberSubject(m.company_name, m.id))
+      : CONTACT_URL + '?member=' + encodeURIComponent(m.id) + '&company=' + encodeURIComponent(m.company_name);
+    c.setAttribute('aria-label', 'Email Partners Unlimited about ' + m.company_name);
     actions.appendChild(c);
     li.appendChild(actions);
     return li;
