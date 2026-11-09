@@ -4,28 +4,27 @@
 (function () {
   'use strict';
 
-  var SUPABASE_URL = 'https://vcugotjdsurpbntuxgcf.supabase.co'; // TEST project (staging)
-  var SUPABASE_KEY = 'sb_publishable_uG8N8yNJLHLz3PhzbGNJQg_HT_It5r8'; // publishable key only
+  var page = document.body && document.body.getAttribute('data-admin-page');
+  if (!page || page === 'signin') {
+    // admin/index.html redirects to member-area; no local sign-in UI anymore
+    return;
+  }
+  if (!window.PUAuth || typeof supabase === 'undefined') return;
+
+  var client = PUAuth.createClient();
+  var SIGN_IN = PUAuth.urlFor('signIn');
+  var MEMBER_HOME = PUAuth.urlFor('memberHome');
+
+  /* Columns for admin member reads.
+     TODO(PU Data): contact_person is becoming private — public directory must not
+     select it. Admin reads should eventually go through confirmed admin RPCs
+     (see PUAuth.CONFIG.rpc). Until then, keep the direct select in fetchMembersForAdmin(). */
   var MEMBER_COLUMNS = [
     'id', 'continent', 'region', 'country', 'city', 'ports',
     'company_name', 'contact_person', 'website', 'description',
     'email', 'status', 'consent_at', 'membership_tier', 'renewal_date',
     'notes', 'created_at', 'updated_at'
   ].join(',');
-
-  var page = document.body && document.body.getAttribute('data-admin-page');
-  if (!page || typeof supabase === 'undefined' || !supabase.createClient) {
-    return;
-  }
-
-  var client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
-      storageKey: 'pu-admin-auth'
-    }
-  });
 
   /* ---------- tiny helpers (no PII logging) ---------- */
   function $(id) { return document.getElementById(id); }
@@ -37,27 +36,8 @@
     el.className = 'admin-alert' + (kind ? ' is-' + kind : '');
   }
 
-  function isRlsError(err) {
-    if (!err) return false;
-    var code = String(err.code || '');
-    var msg = String(err.message || err.error_description || '').toLowerCase();
-    return code === '42501' || code === 'PGRST301' || code === 'PGRST116' ||
-      msg.indexOf('row-level security') !== -1 ||
-      msg.indexOf('permission denied') !== -1 ||
-      msg.indexOf('not authorized') !== -1 ||
-      (msg.indexOf('jwt') !== -1 && msg.indexOf('denied') !== -1) ||
-      msg.indexOf('policy') !== -1;
-  }
-
   function friendlyError(err, fallback) {
-    if (isRlsError(err)) {
-      return 'You do not have permission to do that yet. Admin write policies may still be missing — ask the database owner to grant admin access.';
-    }
-    var msg = (err && (err.message || err.error_description)) || '';
-    if (/invalid login|invalid credentials|email not confirmed/i.test(msg)) {
-      return 'Sign-in failed. Check your email and password, or ask an admin to enable your account.';
-    }
-    return fallback || 'Something went wrong. Please try again.';
+    return PUAuth.friendlyAuthError(err, fallback || 'Something went wrong. Please try again.');
   }
 
   function fmtDate(iso) {
@@ -103,106 +83,37 @@
   }
 
   /* ---------- auth gate ---------- */
-  async function getSession() {
-    var res = await client.auth.getSession();
-    return res && res.data ? res.data.session : null;
-  }
-
-  async function checkIsAdmin() {
-    // Prefer SECURITY DEFINER helper if present
-    try {
-      var rpc = await client.rpc('is_admin');
-      if (!rpc.error && typeof rpc.data === 'boolean') return rpc.data;
-      if (!rpc.error && rpc.data != null) return !!rpc.data;
-    } catch (e) { /* fall through */ }
-
-    // Fallback: profiles.role = 'admin' for the signed-in user
-    try {
-      var userRes = await client.auth.getUser();
-      var user = userRes && userRes.data && userRes.data.user;
-      if (!user) return false;
-      var q = await client.from('profiles').select('role').eq('id', user.id).maybeSingle();
-      if (q.error) {
-        // If profiles cannot be read, treat as not admin (DB still gates members)
-        return false;
-      }
-      return q.data && String(q.data.role).toLowerCase() === 'admin';
-    } catch (e) {
-      return false;
-    }
-  }
-
   async function requireAdmin() {
-    var session = await getSession();
+    var session = await PUAuth.getSession(client);
     if (!session) {
-      location.replace('index.html');
+      location.replace(SIGN_IN);
       return null;
     }
-    var ok = await checkIsAdmin();
+    var ok = await PUAuth.checkIsAdmin(client);
     if (!ok) {
-      // Still allow the shell to show a denied state; DB will block data anyway
-      return { session: session, isAdmin: false };
+      // Authenticated non-admin → member portal (single routing rule)
+      location.replace(MEMBER_HOME);
+      return null;
     }
     return { session: session, isAdmin: true };
   }
 
-  async function signOut() {
-    try { await client.auth.signOut(); } catch (e) { /* ignore */ }
-    location.replace('index.html');
+  function signOut() {
+    return PUAuth.signOut(client);
   }
 
-  /* ---------- SIGN-IN PAGE ---------- */
-  async function initSignIn() {
-    var form = $('admin-signin-form');
-    var alertEl = $('admin-alert');
-    var btn = $('admin-signin-btn');
-    if (!form) return;
-
-    // Already signed in + admin → members
-    try {
-      var session = await getSession();
-      if (session) {
-        var ok = await checkIsAdmin();
-        if (ok) {
-          location.replace('members.html');
-          return;
-        }
-        // Signed in but not admin: clear so they can try another account
-        await client.auth.signOut();
-        showAlert(alertEl, 'That account is not an admin. Sign in with an admin email.', 'error');
-      }
-    } catch (e) { /* stay on form */ }
-
-    form.addEventListener('submit', async function (ev) {
-      ev.preventDefault();
-      showAlert(alertEl, '', null);
-      var email = ($('admin-email').value || '').trim();
-      var password = $('admin-password').value || '';
-      if (!email || !password) {
-        showAlert(alertEl, 'Enter your email and password.', 'error');
-        return;
-      }
-      setBusy(btn, true, 'Signing in…');
-      try {
-        var res = await client.auth.signInWithPassword({ email: email, password: password });
-        if (res.error) {
-          showAlert(alertEl, friendlyError(res.error), 'error');
-          setBusy(btn, false, 'Sign in');
-          return;
-        }
-        var ok = await checkIsAdmin();
-        if (!ok) {
-          await client.auth.signOut();
-          showAlert(alertEl, 'Signed in, but this account is not an admin.', 'error');
-          setBusy(btn, false, 'Sign in');
-          return;
-        }
-        location.replace('members.html');
-      } catch (err) {
-        showAlert(alertEl, friendlyError(err), 'error');
-        setBusy(btn, false, 'Sign in');
-      }
-    });
+  /**
+   * Single place for admin member reads (list).
+   * TODO(PU Data): replace this direct .from('members').select(...) with the
+   * confirmed admin RPC once available (wire the name in PUAuth.CONFIG.rpc).
+   * contact_person is becoming private — do not reuse this select on public pages.
+   */
+  async function fetchMembersForAdmin() {
+    // Future: var rpcName = PUAuth.CONFIG.rpc.adminListMembers; if (rpcName) ...
+    return client
+      .from(PUAuth.CONFIG.tables.members)
+      .select(MEMBER_COLUMNS)
+      .order('company_name', { ascending: true });
   }
 
   /* ---------- MEMBERS PAGE ---------- */
@@ -463,10 +374,7 @@
     $('admin-count').textContent = 'Loading…';
     showAlert($('admin-alert'), '', null);
 
-    var res = await client
-      .from('members')
-      .select(MEMBER_COLUMNS)
-      .order('company_name', { ascending: true });
+    var res = await fetchMembersForAdmin();
 
     if (res.error) {
       membersCache = [];
@@ -508,10 +416,10 @@
     try {
       var res;
       if (id) {
-        res = await client.from('members').update(payload).eq('id', id).select(MEMBER_COLUMNS).maybeSingle();
+        res = await client.from(PUAuth.CONFIG.tables.members).update(payload).eq('id', id).select(MEMBER_COLUMNS).maybeSingle();
       } else {
         if (!payload.status) payload.status = 'pending';
-        res = await client.from('members').insert(payload).select(MEMBER_COLUMNS).maybeSingle();
+        res = await client.from(PUAuth.CONFIG.tables.members).insert(payload).select(MEMBER_COLUMNS).maybeSingle();
       }
 
       if (res.error) {
@@ -684,6 +592,5 @@
   }
 
   /* ---------- boot ---------- */
-  if (page === 'signin') initSignIn();
-  else if (page === 'members') initMembers();
+  if (page === 'members') initMembers();
 })();

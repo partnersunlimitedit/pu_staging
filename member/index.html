@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My membership — Partners Unlimited</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="description" content="View your Partners Unlimited membership profile.">
+<link rel="icon" type="image/png" href="../assets/img/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/css/style.css">
+<link rel="stylesheet" href="../assets/css/portal.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../assets/js/pu-auth.js" defer></script>
+<script src="assets/member.js" defer></script>
+</head>
+<body class="admin-body" data-pu-root="../" data-pu-page="member-home" style="background:var(--bg-soft);min-height:100vh;display:flex;flex-direction:column;">
+
+<header class="member-bar">
+  <div class="container member-bar-inner">
+    <a class="member-brand" href="index.html">
+      <img src="../assets/img/logo.png" alt="Partners Unlimited" width="120" height="75">
+      <span>Member</span>
+    </a>
+    <div class="member-bar-actions">
+      <button type="button" class="btn btn-primary" id="member-signout-btn">Sign out</button>
+    </div>
+  </div>
+</header>
+
+<main class="member-shell" style="flex:1;">
+  <div class="container">
+    <div id="member-gate" class="portal-alert is-info" role="status">Checking your account…</div>
+    <div id="member-alert" class="portal-alert" hidden role="alert"></div>
+
+    <div id="member-content" hidden>
+      <div class="admin-page-head" style="margin-bottom:1.5rem;">
+        <div>
+          <p class="eyebrow">Member portal</p>
+          <h1 class="section-title" style="margin-bottom:.35rem;">Welcome</h1>
+          <p class="muted" id="member-welcome">Your membership overview</p>
+        </div>
+      </div>
+
+      <div class="member-grid">
+        <section class="member-card" aria-labelledby="profile-heading">
+          <h2 id="profile-heading">My profile</h2>
+          <p class="muted" style="margin-top:-0.35rem;margin-bottom:1rem;font-size:.9rem;">Read-only for now. Profile edits will need admin approval (coming later).</p>
+          <dl class="member-dl">
+            <div><dt>Company</dt><dd id="mp-company">—</dd></div>
+            <div><dt>Contact</dt><dd id="mp-contact">—</dd></div>
+            <div><dt>Email</dt><dd id="mp-email">—</dd></div>
+            <div><dt>Location</dt><dd id="mp-location">—</dd></div>
+            <div><dt>Website</dt><dd id="mp-website">—</dd></div>
+          </dl>
+        </section>
+
+        <section class="member-card" aria-labelledby="membership-heading">
+          <h2 id="membership-heading">My membership</h2>
+          <dl class="member-dl">
+            <div><dt>Status</dt><dd id="mp-status">—</dd></div>
+            <div><dt>Tier</dt><dd id="mp-tier">—</dd></div>
+            <div><dt>Renewal</dt><dd id="mp-renewal">—</dd></div>
+            <div><dt>Consent</dt><dd id="mp-consent">—</dd></div>
+          </dl>
+          <p class="member-note">Directory listing visibility depends on status and consent. Changes to your public listing will go through admin approval in a later release.</p>
+        </section>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer class="member-footer">
+  <div class="container"><p>Partners Unlimited — member portal (staging)</p></div>
+</footer>
+
+</body>
+</html>
