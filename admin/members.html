@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Members — Admin — Partners Unlimited</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="description" content="Admin member list and editor for Partners Unlimited.">
+<link rel="icon" type="image/png" href="../assets/img/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/css/style.css">
+<link rel="stylesheet" href="assets/admin.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../assets/js/main.js" defer></script>
+<script src="../assets/js/pu-auth.js" defer></script>
+<script src="assets/admin.js" defer></script>
+</head>
+<body class="admin-body" data-pu-root="../" data-admin-page="members">
+
+<header class="admin-bar">
+  <div class="container admin-bar-inner">
+    <a class="admin-brand" href="members.html" title="Admin members">
+      <img src="../assets/img/logo.png" alt="Partners Unlimited" width="120" height="75">
+      <span>Admin</span>
+    </a>
+    <nav class="admin-nav" aria-label="Admin">
+      <a href="members.html" class="is-active" data-admin-nav="list">Members</a>
+      <a href="admins.html" data-admin-nav="admins">Admins</a>
+      <button type="button" class="btn btn-outline admin-nav-btn" id="admin-add-btn">Add member</button>
+      <button type="button" class="btn btn-primary admin-nav-btn" id="admin-signout-btn">Sign out</button>
+    </nav>
+  </div>
+</header>
+
+<main class="admin-main">
+  <div class="container admin-shell">
+    <div id="admin-gate" class="admin-state" hidden>
+      <div class="dir-spinner" aria-hidden="true"></div>
+      <p class="dir-state-title">Checking access…</p>
+    </div>
+
+    <div id="admin-denied" class="admin-state admin-state-msg" hidden role="alert">
+      <p class="dir-state-title">Access denied</p>
+      <p class="muted">This account is not an admin, or admin policies are not ready yet.</p>
+      <button type="button" class="btn btn-outline" id="admin-denied-signout">Back to sign-in</button>
+    </div>
+
+    <!-- LIST VIEW -->
+    <section id="admin-list-view" class="admin-view" hidden>
+      <div class="admin-page-head">
+        <div>
+          <p class="eyebrow">Admin</p>
+          <h1 class="section-title" style="margin-bottom:.35rem;">Members</h1>
+          <p class="muted" id="admin-count">Loading…</p>
+        </div>
+      </div>
+
+      <div id="admin-alert" class="admin-alert" hidden role="alert"></div>
+
+      <form class="admin-filters" id="admin-filters" aria-label="Filter members" onsubmit="return false;">
+        <div class="field">
+          <label for="f-search">Search</label>
+          <input id="f-search" type="search" placeholder="Company, contact, country, city…" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="f-status">Status</label>
+          <select id="f-status">
+            <option value="">All statuses</option>
+            <option value="pending">Pending</option>
+            <option value="active">Active</option>
+            <option value="removed">Removed</option>
+          </select>
+        </div>
+        <div class="admin-filters-actions">
+          <button type="button" class="btn btn-outline" id="f-reset" disabled>Reset</button>
+        </div>
+      </form>
+
+      <div id="admin-list-loading" class="admin-state" hidden>
+        <div class="dir-spinner" aria-hidden="true"></div>
+        <p>Loading members…</p>
+      </div>
+      <div id="admin-list-empty" class="admin-state admin-state-msg" hidden>
+        <p class="dir-state-title">No members match</p>
+        <p class="muted">Try clearing the search or status filter.</p>
+        <button type="button" class="btn btn-outline" id="admin-empty-reset">Reset filters</button>
+      </div>
+      <div id="admin-list-error" class="admin-state admin-state-msg" hidden role="alert">
+        <p class="dir-state-title">Could not load members</p>
+        <p class="muted" id="admin-list-error-msg">Admin read access may not be granted yet.</p>
+        <button type="button" class="btn btn-outline" id="admin-list-retry">Retry</button>
+      </div>
+
+      <!-- Desktop table -->
+      <div class="admin-table-wrap" id="admin-table-wrap" hidden>
+        <table class="admin-table" aria-label="Members">
+          <thead>
+            <tr>
+              <th scope="col">Company</th>
+              <th scope="col">Location</th>
+              <th scope="col">Status</th>
+              <th scope="col">Tier</th>
+              <th scope="col">Renewal</th>
+              <th scope="col">Updated</th>
+            </tr>
+          </thead>
+          <tbody id="admin-table-body"></tbody>
+        </table>
+      </div>
+
+      <!-- Mobile cards -->
+      <ul class="admin-cards" id="admin-cards" hidden></ul>
+    </section>
+
+    <!-- DETAIL / EDIT / ADD VIEW -->
+    <section id="admin-detail-view" class="admin-view" hidden>
+      <div class="admin-page-head admin-detail-head">
+        <button type="button" class="btn btn-outline" id="admin-back-btn">← Back to list</button>
+        <div>
+          <p class="eyebrow" id="admin-detail-eyebrow">Edit member</p>
+          <h1 class="section-title" id="admin-detail-title" style="margin-bottom:.35rem;">Member</h1>
+        </div>
+      </div>
+
+      <div id="admin-detail-alert" class="admin-alert" hidden role="alert"></div>
+
+      <form id="admin-member-form" class="form-card admin-form" novalidate>
+        <input type="hidden" id="m-id" name="id" value="">
+
+        <fieldset>
+          <legend>Public listing</legend>
+          <div class="form-grid admin-form-grid">
+            <div class="field">
+              <label for="m-company">Company name <span class="req">*</span></label>
+              <input id="m-company" name="company_name" type="text" required maxlength="200">
+            </div>
+            <div class="field">
+              <label for="m-contact">Contact person</label>
+              <input id="m-contact" name="contact_person" type="text" maxlength="200">
+            </div>
+            <div class="field">
+              <label for="m-continent">Continent <span class="req">*</span></label>
+              <select id="m-continent" name="continent" required>
+                <option value="">Select…</option>
+                <option>Africa</option>
+                <option>Asia</option>
+                <option>Central America</option>
+                <option>Europe</option>
+                <option>Middle East</option>
+                <option>North America</option>
+                <option>Oceania</option>
+                <option>South America</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="m-region">Region</label>
+              <input id="m-region" name="region" type="text" maxlength="120">
+            </div>
+            <div class="field">
+              <label for="m-country">Country <span class="req">*</span></label>
+              <input id="m-country" name="country" type="text" required maxlength="120">
+            </div>
+            <div class="field">
+              <label for="m-city">City</label>
+              <input id="m-city" name="city" type="text" maxlength="120">
+            </div>
+            <div class="field admin-span-2">
+              <label for="m-ports">Ports <span class="field-hint">(comma-separated)</span></label>
+              <input id="m-ports" name="ports" type="text" placeholder="e.g. Shanghai, Ningbo">
+            </div>
+            <div class="field admin-span-2">
+              <label for="m-website">Website</label>
+              <input id="m-website" name="website" type="url" maxlength="300" placeholder="https://">
+            </div>
+            <div class="field admin-span-2">
+              <label for="m-description">Description</label>
+              <textarea id="m-description" name="description" rows="4" maxlength="2000"></textarea>
+            </div>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Private (admin only)</legend>
+          <div class="form-grid admin-form-grid">
+            <div class="field">
+              <label for="m-email">Email</label>
+              <input id="m-email" name="email" type="email" maxlength="200" autocomplete="off">
+            </div>
+            <div class="field">
+              <label for="m-tier">Membership tier</label>
+              <input id="m-tier" name="membership_tier" type="text" maxlength="80">
+            </div>
+            <div class="field">
+              <label for="m-renewal">Renewal date</label>
+              <input id="m-renewal" name="renewal_date" type="date">
+            </div>
+            <div class="field">
+              <label for="m-status">Status</label>
+              <select id="m-status" name="status">
+                <option value="pending">Pending</option>
+                <option value="active">Active</option>
+                <option value="removed">Removed</option>
+              </select>
+            </div>
+            <div class="field admin-span-2">
+              <label class="admin-check">
+                <input type="checkbox" id="m-consent" name="consent">
+                <span>Member has agreed to be listed</span>
+              </label>
+              <p class="field-note muted" id="m-consent-note">Sets consent_at when checked. Approve requires consent.</p>
+            </div>
+            <div class="field admin-span-2">
+              <label for="m-notes">Notes</label>
+              <textarea id="m-notes" name="notes" rows="3" maxlength="4000"></textarea>
+            </div>
+            <div class="field">
+              <label>Created</label>
+              <p class="admin-readonly" id="m-created">—</p>
+            </div>
+            <div class="field">
+              <label>Updated</label>
+              <p class="admin-readonly" id="m-updated">—</p>
+            </div>
+          </div>
+        </fieldset>
+
+        <div class="admin-form-actions">
+          <div class="admin-form-actions-primary">
+            <button type="submit" class="btn btn-primary" id="admin-save-btn">Save</button>
+            <button type="button" class="btn btn-outline" id="admin-approve-btn" disabled title="Consent required before approve">Approve</button>
+          </div>
+          <div class="admin-form-actions-secondary">
+            <button type="button" class="btn btn-outline" id="admin-hide-btn">Hide</button>
+            <button type="button" class="btn admin-btn-danger" id="admin-remove-btn">Remove</button>
+          </div>
+        </div>
+      </form>
+    </section>
+  </div>
+</main>
+
+<!-- Remove confirm modal -->
+<div id="admin-modal" class="admin-modal" hidden>
+  <div class="admin-modal-backdrop" data-modal-close></div>
+  <div class="admin-modal-dialog form-card" role="dialog" aria-modal="true" aria-labelledby="admin-modal-title">
+    <h2 id="admin-modal-title" class="section-title" style="font-size:1.25rem;">Remove member?</h2>
+    <p class="muted" id="admin-modal-body">This sets status to removed. The row is kept (soft delete). The member will not appear on the public directory.</p>
+    <div class="admin-modal-actions">
+      <button type="button" class="btn btn-outline" data-modal-close>Cancel</button>
+      <button type="button" class="btn admin-btn-danger" id="admin-modal-confirm">Remove</button>
+    </div>
+  </div>
+</div>
+
+<footer class="admin-footer">
+  <div class="container"><p>Partners Unlimited — admin portal (staging)</p></div>
+</footer>
+
+</body>
+</html>
