@@ -8,10 +8,7 @@
   function mailto(subject) {
     return 'mailto:' + address() + (subject ? '?subject=' + encodeURIComponent(subject) : '');
   }
-  function memberSubject(company, id) {
-    return 'Enquiry about ' + company + (id != null && id !== '' ? ' (member #' + id + ')' : '');
-  }
-  window.PUEmail = { address: address, mailto: mailto, memberSubject: memberSubject };
+  window.PUEmail = { address: address, mailto: mailto };
 
   // Fill any placeholders on the page.
   document.querySelectorAll('.js-pu-email').forEach(function (el) { el.textContent = address(); });

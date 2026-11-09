@@ -1,19 +1,17 @@
 /* Partners Unlimited — Member Directory
    Reads public member listings from Supabase (read-only, public key).
-   Filters by location only: continent -> country -> city/port. */
+   Filters by location only: continent -> country. */
 (function () {
   'use strict';
 
   var SUPABASE_URL = 'https://vcugotjdsurpbntuxgcf.supabase.co'; // TEST project (staging)
   var SUPABASE_KEY = 'sb_publishable_uG8N8yNJLHLz3PhzbGNJQg_HT_It5r8'; // publishable key, safe in the browser
-  var COLUMNS = 'id,continent,region,country,city,ports,company_name,contact_person,website,description';
-  var CONTACT_URL = 'contact-us.html';
+  var COLUMNS = 'id,continent,region,country,city,ports,company_name,website,description';
   var TIMEOUT_MS = 15000;
 
   var els = {
     continent: document.getElementById('f-continent'),
     country: document.getElementById('f-country'),
-    place: document.getElementById('f-place'),
     reset: document.getElementById('f-reset'),
     count: document.getElementById('dir-count'),
     notice: document.getElementById('dir-notice'),
@@ -38,9 +36,6 @@
       seen[k] = true;
       return true;
     }).sort(function (a, b) { return a.localeCompare(b); });
-  }
-  function placesOf(m) {
-    return [m.city].concat(Array.isArray(m.ports) ? m.ports : []).filter(Boolean);
   }
   function eqi(a, b) { return String(a || '').toLowerCase() === String(b || '').toLowerCase(); }
 
@@ -91,16 +86,13 @@
     els.grid.hidden = which !== 'grid';
   }
 
-  var filtersOn = false;
   function setFiltersEnabled(on) {
-    filtersOn = on;
-    [els.continent, els.country, els.place, els.reset].forEach(function (c) { c.disabled = !on; });
-    if (on) updatePlaceState();
+    [els.continent, els.country, els.reset].forEach(function (c) { c.disabled = !on; });
   }
 
   /* ---------- filters ---------- */
   function current() {
-    return { continent: els.continent.value, country: els.country.value, place: els.place.value };
+    return { continent: els.continent.value, country: els.country.value };
   }
 
   function refreshOptions() {
@@ -110,20 +102,6 @@
 
     var inContinent = members.filter(function (m) { return !f.continent || eqi(m.continent, f.continent); });
     fillSelect(els.country, 'All countries', uniqSorted(inContinent.map(function (m) { return m.country; })), f.country);
-    f.country = els.country.value;
-
-    var inCountry = inContinent.filter(function (m) { return !f.country || eqi(m.country, f.country); });
-    var places = [];
-    inCountry.forEach(function (m) { places = places.concat(placesOf(m)); });
-    fillSelect(els.place, 'All cities & ports', uniqSorted(places), f.place);
-    updatePlaceState();
-  }
-
-  // City / Port has nothing to choose until members have cities or ports recorded.
-  function updatePlaceState() {
-    var none = els.place.options.length <= 1;
-    if (filtersOn) els.place.disabled = none;
-    els.place.title = none ? 'No cities or ports listed for this selection yet' : '';
   }
 
   // Select the option matching `want` regardless of letter case; returns false if none.
@@ -146,7 +124,6 @@
     return members.filter(function (m) {
       if (f.continent && !eqi(m.continent, f.continent)) return false;
       if (f.country && !eqi(m.country, f.country)) return false;
-      if (f.place && !placesOf(m).some(function (p) { return eqi(p, f.place); })) return false;
       return true;
     });
   }
@@ -184,7 +161,6 @@
     row('Country', m.country);
     row('City', m.city);
     row('Ports', Array.isArray(m.ports) && m.ports.length ? m.ports.join(', ') : '');
-    row('Contact', m.contact_person);
     var u = safeUrl(m.website);
     if (u) {
       var a = el('a', null, u.hostname.replace(/^www\./, ''));
@@ -198,22 +174,12 @@
 
     if (m.description) li.appendChild(el('p', 'dir-card-desc', m.description));
 
-    var actions = el('div', 'dir-card-actions');
-    var c = el('a', 'btn btn-primary', 'Contact this member');
-    // Opens the visitor's e-mail app addressed to the PU team (never the member's own e-mail).
-    // Falls back to the contact page if the e-mail helper didn't load.
-    c.href = window.PUEmail
-      ? PUEmail.mailto(PUEmail.memberSubject(m.company_name, m.id))
-      : CONTACT_URL + '?member=' + encodeURIComponent(m.id) + '&company=' + encodeURIComponent(m.company_name);
-    c.setAttribute('aria-label', 'Email Partners Unlimited about ' + m.company_name);
-    actions.appendChild(c);
-    li.appendChild(actions);
     return li;
   }
 
   function render() {
     var list = filtered();
-    var anyFilter = !!(els.continent.value || els.country.value || els.place.value);
+    var anyFilter = !!(els.continent.value || els.country.value);
     els.reset.disabled = !anyFilter;
     els.grid.innerHTML = '';
     if (!list.length) {
@@ -240,7 +206,6 @@
   function resetAll() {
     els.continent.value = '';
     els.country.value = '';
-    els.place.value = '';
     onChange();
     els.continent.focus();
   }
@@ -272,16 +237,18 @@
         els.continent.innerHTML = '';
         refreshOptions();
         var bad = false;
-        [['continent', els.continent], ['country', els.country], ['place', els.place]].forEach(function (pair) {
+        [['continent', els.continent], ['country', els.country]].forEach(function (pair) {
           var want = (p.get(pair[0]) || '').trim();
           if (!want) return;
           if (applyOption(pair[1], want)) refreshOptions();
           else bad = true;
         });
         if (bad) {
-          var kept = els.place.value || els.country.value || els.continent.value;
+          var kept = els.country.value || els.continent.value;
           showNotice('That location isn\u2019t in the directory yet; showing all members' + (kept ? ' in ' + kept : '') + '.');
           syncUrl(); // drops the unknown parameter(s) from the address bar
+        } else if (Array.from(p.keys()).some(function (k) { return k !== 'continent' && k !== 'country'; })) {
+          syncUrl(); // silently drop old/unsupported parameters such as ?place=
         }
         setFiltersEnabled(true);
         render();
@@ -294,9 +261,8 @@
       });
   }
 
-  els.continent.addEventListener('change', function () { els.country.value = ''; els.place.value = ''; onChange(); });
-  els.country.addEventListener('change', function () { els.place.value = ''; onChange(); });
-  els.place.addEventListener('change', onChange);
+  els.continent.addEventListener('change', function () { els.country.value = ''; onChange(); });
+  els.country.addEventListener('change', onChange);
   els.reset.addEventListener('click', resetAll);
   els.emptyReset.addEventListener('click', resetAll);
   els.retry.addEventListener('click', load);
