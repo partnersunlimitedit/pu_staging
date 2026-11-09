@@ -152,3 +152,15 @@
 }
 .dir-preview svg { flex-shrink: 0; color: var(--brand); }
 .dir-preview strong { color: var(--brand-ink); }
+
+/* Notice for a deep link to a location that isn't listed */
+.dir-notice {
+  margin: 1.5rem 0 0;
+  padding: .75rem 1.1rem;
+  font-size: .93rem;
+  color: var(--ink-soft);
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 12px;
+}
+.dir-notice[hidden] { display: none; }

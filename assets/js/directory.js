@@ -16,6 +16,7 @@
     place: document.getElementById('f-place'),
     reset: document.getElementById('f-reset'),
     count: document.getElementById('dir-count'),
+    notice: document.getElementById('dir-notice'),
     loading: document.getElementById('dir-loading'),
     empty: document.getElementById('dir-empty'),
     emptyReset: document.getElementById('dir-empty-reset'),
@@ -62,10 +63,16 @@
   function safeUrl(raw) {
     if (!raw) return null;
     var s = String(raw).trim();
-    if (!/^https?:\/\//i.test(s)) s = 'https://' + s;
+    if (!s || /\s/.test(s)) return null;
+    if (!/^https?:\/\//i.test(s)) {
+      // Only a bare domain (e.g. example.com or www.example.com/path) gets https:// added.
+      // Anything else with a scheme or odd format (mailto:, javascript:, //host, ftp://) gets no link.
+      if (!/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}(?::\d{1,5})?(?:[/?#].*)?$/i.test(s)) return null;
+      s = 'https://' + s;
+    }
     try {
       var u = new URL(s);
-      if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+      if ((u.protocol !== 'http:' && u.protocol !== 'https:') || !u.hostname || u.username || u.password) return null;
       return u;
     } catch (e) { return null; }
   }
@@ -98,21 +105,36 @@
     fillSelect(els.continent, 'All continents', uniqSorted(members.map(function (m) { return m.continent; })), f.continent);
     f.continent = els.continent.value;
 
-    var inContinent = members.filter(function (m) { return !f.continent || m.continent === f.continent; });
+    var inContinent = members.filter(function (m) { return !f.continent || eqi(m.continent, f.continent); });
     fillSelect(els.country, 'All countries', uniqSorted(inContinent.map(function (m) { return m.country; })), f.country);
     f.country = els.country.value;
 
-    var inCountry = inContinent.filter(function (m) { return !f.country || m.country === f.country; });
+    var inCountry = inContinent.filter(function (m) { return !f.country || eqi(m.country, f.country); });
     var places = [];
     inCountry.forEach(function (m) { places = places.concat(placesOf(m)); });
     fillSelect(els.place, 'All cities & ports', uniqSorted(places), f.place);
   }
 
+  // Select the option matching `want` regardless of letter case; returns false if none.
+  function applyOption(select, want) {
+    for (var i = 0; i < select.options.length; i++) {
+      var o = select.options[i];
+      if (o.value && eqi(o.value, want)) { select.value = o.value; return true; }
+    }
+    return false;
+  }
+
+  function showNotice(msg) {
+    if (!els.notice) return;
+    els.notice.textContent = msg || '';
+    els.notice.hidden = !msg;
+  }
+
   function filtered() {
     var f = current();
     return members.filter(function (m) {
-      if (f.continent && m.continent !== f.continent) return false;
-      if (f.country && m.country !== f.country) return false;
+      if (f.continent && !eqi(m.continent, f.continent)) return false;
+      if (f.country && !eqi(m.country, f.country)) return false;
       if (f.place && !placesOf(m).some(function (p) { return eqi(p, f.place); })) return false;
       return true;
     });
@@ -194,6 +216,7 @@
   }
 
   function onChange() {
+    showNotice('');
     refreshOptions();
     syncUrl();
     render();
@@ -233,9 +256,18 @@
         var p = new URLSearchParams(location.search);
         els.continent.innerHTML = '';
         refreshOptions();
-        if (p.get('continent')) { els.continent.value = p.get('continent'); refreshOptions(); }
-        if (p.get('country')) { els.country.value = p.get('country'); refreshOptions(); }
-        if (p.get('place')) { els.place.value = p.get('place'); }
+        var bad = false;
+        [['continent', els.continent], ['country', els.country], ['place', els.place]].forEach(function (pair) {
+          var want = (p.get(pair[0]) || '').trim();
+          if (!want) return;
+          if (applyOption(pair[1], want)) refreshOptions();
+          else bad = true;
+        });
+        if (bad) {
+          var kept = els.place.value || els.country.value || els.continent.value;
+          showNotice('That location isn\u2019t in the directory yet; showing all members' + (kept ? ' in ' + kept : '') + '.');
+          syncUrl(); // drops the unknown parameter(s) from the address bar
+        }
         setFiltersEnabled(true);
         render();
       })
