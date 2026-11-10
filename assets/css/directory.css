@@ -180,3 +180,15 @@
 }
 .dir-privacy-link a { color: var(--muted); }
 .dir-privacy-link a:hover { color: var(--brand); }
+
+/* Shown only after signed-in contact details have loaded */
+.dir-session-note {
+  margin: 1.5rem 0 0;
+  padding: .75rem 1.1rem;
+  font-size: .93rem;
+  color: var(--brand-ink);
+  background: var(--brand-soft);
+  border: 1px solid rgba(124, 58, 237, .18);
+  border-radius: 12px;
+}
+.dir-session-note[hidden] { display: none; }

@@ -1,6 +1,8 @@
 /* Partners Unlimited — Member Directory
    Reads public member listings from Supabase (read-only, public key).
-   Filters by location only: continent -> country. */
+   Filters by location only: continent -> country.
+   If a member or admin is signed in, contact person and email are loaded
+   via RPC directory_member_contacts and merged onto cards by id. */
 (function () {
   'use strict';
 
@@ -20,7 +22,8 @@
     emptyReset: document.getElementById('dir-empty-reset'),
     error: document.getElementById('dir-error'),
     retry: document.getElementById('dir-retry'),
-    grid: document.getElementById('dir-grid')
+    grid: document.getElementById('dir-grid'),
+    sessionNote: document.getElementById('dir-session-note')
   };
   if (!els.grid) return;
 
@@ -77,6 +80,24 @@
     if (cls) n.className = cls;
     if (text != null) n.textContent = text;
     return n;
+  }
+
+  // Only allow a normal email as a mailto: link (has @, no spaces, no javascript:).
+  function safeEmail(raw) {
+    if (!raw) return null;
+    var s = String(raw).trim();
+    if (!s || /\s/.test(s)) return null;
+    if (/javascript:/i.test(s)) return null;
+    if (s.indexOf('@') === -1) return null;
+    if (/^mailto:/i.test(s)) s = s.slice(7);
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s)) return null;
+    return s;
+  }
+
+  function showSessionNote(msg) {
+    if (!els.sessionNote) return;
+    els.sessionNote.textContent = msg || '';
+    els.sessionNote.hidden = !msg;
   }
 
   function show(which) {
@@ -176,6 +197,15 @@
       a.setAttribute('aria-label', 'Website of ' + m.company_name + ' (opens in a new tab)');
       row('Website', null, a);
     }
+    // Signed-in extras only (merged after directory_member_contacts succeeds).
+    var person = (m.contact_person || '').trim();
+    if (person) row('Contact', person);
+    var email = safeEmail(m.email);
+    if (email) {
+      var mail = el('a', null, email);
+      mail.href = 'mailto:' + email;
+      row('Email', null, mail);
+    }
     if (dl.children.length) li.appendChild(dl);
     else li.classList.add('is-compact');
 
@@ -260,6 +290,7 @@
         }
         setFiltersEnabled(true);
         render();
+        loadSignedInContacts();
       })
       .catch(function (err) {
         clearTimeout(timer);
@@ -267,6 +298,73 @@
         els.count.textContent = '';
         show('error');
       });
+  }
+
+  /* ---------- signed-in contact details (optional enhancement) ---------- */
+  function accessTokenFromSession(session) {
+    return session && session.access_token ? session.access_token : null;
+  }
+
+  function getAccessToken() {
+    if (!window.PUAuth) return Promise.resolve(null);
+    try {
+      var client = PUAuth.createClient();
+      return PUAuth.getSession(client).then(accessTokenFromSession).catch(function () {
+        return null;
+      });
+    } catch (e) {
+      return Promise.resolve(null);
+    }
+  }
+
+  function mergeContacts(rows) {
+    var byId = {};
+    (Array.isArray(rows) ? rows : []).forEach(function (row) {
+      if (!row || row.id == null) return;
+      byId[String(row.id)] = {
+        contact_person: row.contact_person,
+        email: row.email
+      };
+    });
+    members.forEach(function (m) {
+      var extra = byId[String(m.id)];
+      if (!extra) return;
+      // Only these two fields — never copy status, notes, or other private data.
+      m.contact_person = extra.contact_person;
+      m.email = extra.email;
+    });
+  }
+
+  function loadSignedInContacts() {
+    showSessionNote('');
+    getAccessToken().then(function (token) {
+      if (!token) return;
+      var ctrl = 'AbortController' in window ? new AbortController() : null;
+      var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, TIMEOUT_MS);
+      return fetch(SUPABASE_URL + '/rest/v1/rpc/directory_member_contacts', {
+        method: 'POST',
+        headers: {
+          apikey: SUPABASE_KEY,
+          Authorization: 'Bearer ' + token,
+          Accept: 'application/json',
+          'Content-Type': 'application/json'
+        },
+        body: '{}',
+        signal: ctrl ? ctrl.signal : undefined
+      }).then(function (res) {
+        clearTimeout(timer);
+        if (!res.ok) return null; // not deployed yet, 401/403, etc. — keep public view
+        return res.json();
+      }).then(function (rows) {
+        if (!Array.isArray(rows)) return;
+        mergeContacts(rows);
+        render();
+        showSessionNote("You're signed in, so member contact details are visible.");
+      }).catch(function () {
+        clearTimeout(timer);
+        // Silently keep the public directory view.
+      });
+    });
   }
 
   els.continent.addEventListener('change', function () { els.country.value = ''; onChange(); });
