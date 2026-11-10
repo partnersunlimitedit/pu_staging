@@ -2,8 +2,10 @@
    Reads public member listings from Supabase (read-only, public key).
    Filters by location (continent -> country) and a text search (company, city, or port).
    If a member or admin is signed in, contact person and email are loaded
-   via RPC directory_member_contacts and merged onto cards by id. A copy
-   button is shown next to an email only when that email is already on the card. */
+   via RPC directory_member_contacts and merged onto cards by id. When the
+   RPC also returns an emails array (main / import / export), those labeled
+   addresses are shown; otherwise the card falls back to the single email
+   field. A copy button is shown only next to an email already on the card. */
 (function () {
   'use strict';
 
@@ -96,6 +98,59 @@
     return s;
   }
 
+
+
+  var EMAIL_LABELS = { main: 'Main', import: 'Import', export: 'Export' };
+
+  function displayEmailLabel(raw) {
+    if (raw == null || raw === '') return null;
+    return EMAIL_LABELS[String(raw).trim().toLowerCase()] || null;
+  }
+
+  // Normalise the optional emails array from the signed-in RPC (jsonb may
+  // arrive as an array or a JSON string). Missing or invalid → null.
+  function normalizeEmails(raw) {
+    if (raw == null) return null;
+    var list = raw;
+    if (typeof raw === 'string') {
+      try { list = JSON.parse(raw); } catch (e) { return null; }
+    }
+    return Array.isArray(list) ? list : null;
+  }
+
+  // Valid labeled addresses from emails[], or null to fall back to email.
+  function labeledEmails(raw) {
+    var list = normalizeEmails(raw);
+    if (!list || !list.length) return null;
+    var out = [];
+    list.forEach(function (item) {
+      if (!item || typeof item !== 'object') return;
+      var label = displayEmailLabel(item.label);
+      if (!label) return;
+      var email = safeEmail(item.email);
+      if (!email) return;
+      out.push({ label: label, email: email });
+    });
+    return out.length ? out : null;
+  }
+
+  function emailControl(email, label) {
+    var wrap = el('span', 'dir-email');
+    if (label) wrap.appendChild(el('span', 'dir-email-label', label));
+    var mail = el('a', null, email);
+    mail.href = 'mailto:' + email;
+    var copyBtn = el('button', 'dir-copy-email', 'Copy');
+    copyBtn.type = 'button';
+    copyBtn.setAttribute('data-email', email);
+    copyBtn.setAttribute('aria-label', label
+      ? 'Copy ' + label + ' email address ' + email
+      : 'Copy email address ' + email);
+    copyBtn.setAttribute('aria-live', 'polite');
+    copyBtn.addEventListener('click', onCopyEmailClick);
+    wrap.appendChild(mail);
+    wrap.appendChild(copyBtn);
+    return wrap;
+  }
 
   // Copy text to the clipboard. Prefer the Clipboard API; fall back to a
   // hidden textarea + execCommand so this still works on older browsers.
@@ -202,8 +257,8 @@
     return current().q.toLowerCase().split(/\s+/).filter(Boolean);
   }
 
-  // Public fields, plus contact_person/email only if already merged onto the object
-  // (signed-in RPC). Public visitors must not search hidden emails.
+  // Public fields, plus contact_person/email/emails only if already merged onto
+  // the object (signed-in RPC). Public visitors must not search hidden emails.
   function searchableText(m) {
     var parts = [
       m.company_name,
@@ -216,6 +271,15 @@
     ];
     if (Object.prototype.hasOwnProperty.call(m, 'contact_person')) parts.push(m.contact_person);
     if (Object.prototype.hasOwnProperty.call(m, 'email')) parts.push(m.email);
+    if (Object.prototype.hasOwnProperty.call(m, 'emails')) {
+      var extra = normalizeEmails(m.emails) || [];
+      extra.forEach(function (item) {
+        if (!item || typeof item !== 'object') return;
+        var label = displayEmailLabel(item.label);
+        if (label) parts.push(label);
+        if (item.email != null) parts.push(item.email);
+      });
+    }
     return parts.map(function (v) { return v == null ? '' : String(v); }).join(' ').toLowerCase();
   }
 
@@ -311,20 +375,16 @@
     // Signed-in extras only (merged after directory_member_contacts succeeds).
     var person = (m.contact_person || '').trim();
     if (person) row('Contact', person);
-    var email = safeEmail(m.email);
-    if (email) {
-      var wrap = el('span', 'dir-email');
-      var mail = el('a', null, email);
-      mail.href = 'mailto:' + email;
-      var copyBtn = el('button', 'dir-copy-email', 'Copy');
-      copyBtn.type = 'button';
-      copyBtn.setAttribute('data-email', email);
-      copyBtn.setAttribute('aria-label', 'Copy email address ' + email);
-      copyBtn.setAttribute('aria-live', 'polite');
-      copyBtn.addEventListener('click', onCopyEmailClick);
-      wrap.appendChild(mail);
-      wrap.appendChild(copyBtn);
-      row('Email', null, wrap);
+    var labeled = labeledEmails(m.emails);
+    if (labeled) {
+      var stack = el('span', 'dir-email-list');
+      labeled.forEach(function (item) {
+        stack.appendChild(emailControl(item.email, item.label));
+      });
+      row('Email', null, stack);
+    } else {
+      var email = safeEmail(m.email);
+      if (email) row('Email', null, emailControl(email, null));
     }
     if (dl.children.length) li.appendChild(dl);
     else li.classList.add('is-compact');
@@ -444,17 +504,21 @@
     var byId = {};
     (Array.isArray(rows) ? rows : []).forEach(function (row) {
       if (!row || row.id == null) return;
-      byId[String(row.id)] = {
+      var extra = {
         contact_person: row.contact_person,
         email: row.email
       };
+      // Optional; current TEST RPC may not yet return emails.
+      if (Object.prototype.hasOwnProperty.call(row, 'emails')) extra.emails = row.emails;
+      byId[String(row.id)] = extra;
     });
     members.forEach(function (m) {
       var extra = byId[String(m.id)];
       if (!extra) return;
-      // Only these two fields — never copy status, notes, or other private data.
+      // Only these contact fields — never copy status, notes, or other private data.
       m.contact_person = extra.contact_person;
       m.email = extra.email;
+      if (Object.prototype.hasOwnProperty.call(extra, 'emails')) m.emails = extra.emails;
     });
   }
 
