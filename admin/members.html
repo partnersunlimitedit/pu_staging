@@ -19,6 +19,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="../assets/js/main.js" defer></script>
 <script src="../assets/js/pu-auth.js" defer></script>
+<script src="../assets/js/member-emails.js" defer></script>
 <script src="assets/admin.js" defer></script>
 </head>
 <body class="admin-body" data-pu-root="../" data-admin-page="members">
@@ -207,9 +208,10 @@
               <label for="m-contact">Contact person</label>
               <input id="m-contact" name="contact_person" type="text" maxlength="200">
             </div>
-            <div class="field">
-              <label for="m-email">Email</label>
-              <input id="m-email" name="email" type="email" maxlength="200" autocomplete="off">
+            <div class="field admin-span-2" id="m-emails">
+              <div class="email-list" data-email-list></div>
+              <button type="button" class="btn btn-outline" data-email-add>Add email</button>
+              <p class="field-note muted">Up to 8 addresses. Each one is labelled Main, Import or Export. Several Main addresses are allowed. These are directory contacts, not extra logins.</p>
             </div>
           </div>
         </fieldset>
