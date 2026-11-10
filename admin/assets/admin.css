@@ -3,6 +3,8 @@
    Reuses design tokens from assets/css/style.css
    ============================================================ */
 
+[hidden] { display: none !important; }
+
 .admin-body {
   min-height: 100vh;
   display: flex;
@@ -457,3 +459,63 @@
 }
 
 .admin-note{font-size:.93rem;max-width:46rem;}
+
+/* ---- AGM editor + admin dashboard ---- */
+.admin-form input[type="number"],
+.admin-form textarea {
+  width: 100%;
+  font: inherit;
+  font-size: .95rem;
+  color: var(--ink);
+  background-color: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: .8rem 1rem;
+  transition: border-color .2s ease, box-shadow .2s ease, background-color .2s ease;
+}
+.admin-form textarea { resize: vertical; min-height: 6rem; }
+.admin-badge.is-next { background: var(--brand-soft); color: var(--brand-ink); }
+.admin-badge.is-tba { background: #fff7ed; color: #c2410c; }
+.admin-badge.is-past { background: #f1f5f9; color: #475569; }
+.admin-badge.is-published { background: #ecfdf5; color: #047857; }
+.admin-badge.is-draft { background: #f1f5f9; color: #475569; }
+.admin-row-btn {
+  padding: .4rem .9rem;
+  font-size: .82rem;
+}
+.admin-table tbody td:last-child { white-space: nowrap; }
+.admin-dash {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.admin-dash-card {
+  display: block;
+  background: #fff;
+  border: 1px solid var(--line-soft);
+  border-top: 3px solid var(--brand);
+  border-radius: var(--radius);
+  padding: 1.1rem 1.2rem;
+  box-shadow: var(--shadow-sm);
+  color: inherit;
+  text-decoration: none;
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+.admin-dash-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  color: inherit;
+}
+.admin-dash-card h2 {
+  font-size: 1.05rem;
+  margin: 0 0 .35rem;
+}
+.admin-dash-card .muted { margin: 0; font-size: .9rem; }
+
+@media (max-width: 720px) {
+  .admin-dash { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .admin-dash-card:hover { transform: none; }
+}

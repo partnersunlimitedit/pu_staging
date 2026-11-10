@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AGM meetings — Admin — Partners Unlimited</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="description" content="Add and edit Partners Unlimited Annual General Meetings.">
+<link rel="icon" type="image/png" href="../assets/img/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/css/style.css">
+<link rel="stylesheet" href="../assets/css/portal.css">
+<link rel="stylesheet" href="assets/admin.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../assets/js/main.js" defer></script>
+<script src="../assets/js/pu-auth.js" defer></script>
+<script src="assets/agm-api.js" defer></script>
+<script src="assets/agm.js" defer></script>
+</head>
+<body class="admin-body" data-pu-root="../" data-admin-page="agm">
+
+<header class="admin-bar">
+  <div class="container admin-bar-inner">
+    <a class="admin-brand" href="members.html" title="Admin">
+      <img src="../assets/img/logo.png" alt="Partners Unlimited" width="120" height="75">
+      <span>Admin</span>
+    </a>
+    <nav class="admin-nav" aria-label="Admin">
+      <a href="members.html" data-admin-nav="list">Members</a>
+      <a href="agm.html" class="is-active" data-admin-nav="agm">AGM</a>
+      <a href="pending-edits.html" data-admin-nav="edits">Pending edits</a>
+      <a href="admins.html" data-admin-nav="admins">Admins</a>
+      <button type="button" class="btn btn-outline admin-nav-btn" id="agm-add-btn">Add AGM</button>
+      <button type="button" class="btn btn-primary admin-nav-btn" id="admin-signout-btn">Sign out</button>
+    </nav>
+  </div>
+</header>
+
+<main class="admin-main">
+  <div class="container admin-shell">
+    <div id="admin-gate" class="admin-state" hidden>
+      <div class="dir-spinner" aria-hidden="true"></div>
+      <p class="dir-state-title">Checking access…</p>
+    </div>
+
+    <!-- LIST VIEW -->
+    <section id="agm-list-view" class="admin-view" hidden>
+      <div class="admin-page-head">
+        <div>
+          <p class="eyebrow">Admin</p>
+          <h1 class="section-title" style="margin-bottom:.35rem;">AGM meetings</h1>
+          <p class="muted" id="agm-count">Loading…</p>
+        </div>
+      </div>
+
+      <div id="agm-alert" class="admin-alert" hidden role="alert"></div>
+
+      <div id="agm-list-loading" class="admin-state" hidden>
+        <div class="dir-spinner" aria-hidden="true"></div>
+        <p>Loading meetings…</p>
+      </div>
+      <div id="agm-list-empty" class="admin-state admin-state-msg" hidden>
+        <p class="dir-state-title">No AGM meetings yet</p>
+        <p class="muted">Add a meeting to start building the AGM list. New meetings start unpublished.</p>
+        <button type="button" class="btn btn-outline" id="agm-empty-add">Add AGM</button>
+      </div>
+      <div id="agm-list-error" class="admin-state admin-state-msg" hidden role="alert">
+        <p class="dir-state-title">Could not load meetings</p>
+        <p class="muted" id="agm-list-error-msg">The AGM table may not be set up yet.</p>
+        <button type="button" class="btn btn-outline" id="agm-list-retry">Retry</button>
+      </div>
+
+      <div class="admin-table-wrap" id="agm-table-wrap" hidden>
+        <table class="admin-table" aria-label="AGM meetings">
+          <thead>
+            <tr>
+              <th scope="col">Year</th>
+              <th scope="col">Title</th>
+              <th scope="col">Location</th>
+              <th scope="col">Dates</th>
+              <th scope="col">Status</th>
+              <th scope="col">Published</th>
+              <th scope="col">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="agm-table-body"></tbody>
+        </table>
+      </div>
+
+      <ul class="admin-cards" id="agm-cards" hidden></ul>
+    </section>
+
+    <!-- ADD / EDIT FORM -->
+    <section id="agm-form-view" class="admin-view" hidden>
+      <div class="admin-page-head admin-detail-head">
+        <button type="button" class="btn btn-outline" id="agm-back-btn">← Back to list</button>
+        <div>
+          <p class="eyebrow" id="agm-detail-eyebrow">Edit AGM</p>
+          <h1 class="section-title" id="agm-detail-title" style="margin-bottom:.35rem;">Meeting</h1>
+        </div>
+      </div>
+
+      <div id="agm-detail-alert" class="admin-alert" hidden role="alert"></div>
+
+      <form id="agm-form" class="form-card admin-form" novalidate>
+        <input type="hidden" id="a-id" name="id" value="">
+
+        <fieldset>
+          <legend>Meeting details</legend>
+          <div class="form-grid admin-form-grid">
+            <div class="field">
+              <label for="a-year">Year <span class="req">*</span></label>
+              <input id="a-year" name="year" type="number" inputmode="numeric" min="2000" max="2100" step="1" required>
+            </div>
+            <div class="field">
+              <label for="a-title">Title <span class="req">*</span></label>
+              <input id="a-title" name="title" type="text" required maxlength="200" placeholder="e.g. AGM 2026">
+            </div>
+            <div class="field">
+              <label for="a-location">Location</label>
+              <input id="a-location" name="location" type="text" maxlength="200" placeholder="City, Country">
+            </div>
+            <div class="field">
+              <label for="a-status">Status</label>
+              <select id="a-status" name="status">
+                <option value="tba">TBA</option>
+                <option value="next">Next</option>
+                <option value="past">Past</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="a-start">Start date</label>
+              <input id="a-start" name="start_date" type="date">
+            </div>
+            <div class="field">
+              <label for="a-end">End date</label>
+              <input id="a-end" name="end_date" type="date">
+            </div>
+            <div class="field">
+              <label for="a-sort">Sort order</label>
+              <input id="a-sort" name="sort_order" type="number" inputmode="numeric" step="1" value="0">
+              <p class="field-note muted">Lower numbers appear first, then newer years.</p>
+            </div>
+            <div class="field admin-span-2">
+              <label for="a-description">Short description</label>
+              <textarea id="a-description" name="short_description" rows="4" maxlength="2000"></textarea>
+            </div>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Photos</legend>
+          <p class="admin-note muted" style="margin:0;">Photo uploads are coming later.</p>
+        </fieldset>
+
+        <fieldset>
+          <legend>Visibility</legend>
+          <p class="muted" id="agm-published-state">New meetings start as drafts.</p>
+        </fieldset>
+
+        <div class="admin-form-actions">
+          <div class="admin-form-actions-primary">
+            <button type="submit" class="btn btn-primary" id="agm-save-btn">Save</button>
+          </div>
+          <div class="admin-form-actions-secondary">
+            <button type="button" class="btn btn-primary" id="agm-publish-btn" hidden>Publish</button>
+            <button type="button" class="btn admin-btn-danger" id="agm-unpublish-btn" hidden>Unpublish</button>
+          </div>
+        </div>
+      </form>
+    </section>
+  </div>
+</main>
+
+<div id="agm-modal" class="admin-modal" hidden>
+  <div class="admin-modal-backdrop" data-modal-close></div>
+  <div class="admin-modal-dialog form-card" role="dialog" aria-modal="true" aria-labelledby="agm-modal-title">
+    <h2 id="agm-modal-title" class="section-title" style="font-size:1.25rem;">Update visibility?</h2>
+    <p class="muted" id="agm-modal-body"></p>
+    <div class="admin-modal-actions">
+      <button type="button" class="btn btn-outline" data-modal-close>Cancel</button>
+      <button type="button" class="btn btn-primary" id="agm-modal-confirm">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<footer class="admin-footer">
+  <div class="container"><p>Partners Unlimited — admin portal (staging)</p></div>
+</footer>
+
+</body>
+</html>
