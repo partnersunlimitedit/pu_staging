@@ -60,7 +60,15 @@
     }
     setText('mp-company', companyName);
     setText('mp-contact', row && row.contact_person);
-    setText('mp-email', row && row.email);
+    var emailEl = $('mp-email');
+    if (emailEl) {
+      var emailRows = window.MemberEmails
+        ? MemberEmails.rowsFromMember(row || {})
+        : ((row && row.email) ? [{ label: 'main', email: row.email }] : []);
+      emailEl.textContent = emailRows.length
+        ? (window.MemberEmails ? MemberEmails.formatList(emailRows) : emailRows[0].email)
+        : '—';
+    }
     setText('mp-location', row ? [row.city, row.country, row.continent].filter(Boolean).join(', ') : '');
     setText('mp-ports', row ? portsToText(row.ports) : '');
     var web = $('mp-website');
@@ -106,7 +114,10 @@
     if (!row) return;
     $('e-company').value = row.company_name || '';
     $('e-contact').value = row.contact_person || '';
-    $('e-email').value = row.email || '';
+    if (window.MemberEmails) {
+      MemberEmails.bind($('e-emails'));
+      MemberEmails.renderList($('e-emails'), MemberEmails.rowsFromMember(row), { blankIfEmpty: true });
+    }
     $('e-website').value = row.website || '';
     $('e-continent').value = row.continent || '';
     $('e-region').value = row.region || '';
@@ -121,7 +132,6 @@
     var fields = {
       company_name: val('e-company').trim(),
       contact_person: val('e-contact').trim(),
-      email: val('e-email').trim(),
       website: val('e-website').trim(),
       continent: val('e-continent'),
       region: val('e-region').trim(),
@@ -137,6 +147,17 @@
     var newPorts = textToPorts(val('e-ports'));
     var oldPorts = Array.isArray(company.ports) ? company.ports.filter(Boolean) : [];
     if (newPorts.join('\u0001') !== oldPorts.join('\u0001')) changes.ports = newPorts;
+    if (window.MemberEmails) {
+      var collected = MemberEmails.validate(MemberEmails.collectFrom($('e-emails')));
+      if (!collected.ok) {
+        changes.__emailsError = collected.error;
+        return changes;
+      }
+      var currentEmails = MemberEmails.rowsFromMember(company);
+      if (!MemberEmails.listsEqual(currentEmails, collected.emails)) {
+        changes.emails = collected.emails;
+      }
+    }
     return changes;
   }
 
@@ -147,6 +168,9 @@
   }
 
   function formatChangeVal(v) {
+    if (window.MemberEmails && typeof MemberEmails.formatChangeVal === 'function') {
+      return MemberEmails.formatChangeVal(v);
+    }
     if (v == null || v === '') return '—';
     if (Array.isArray(v)) return v.join(', ') || '—';
     return String(v);
@@ -235,9 +259,17 @@
     ev.preventDefault();
     showAlert('edit-alert', '', null);
     var changes = collectChanges();
+    if (changes.__emailsError) {
+      showAlert('edit-alert', changes.__emailsError, 'error');
+      return;
+    }
+    delete changes.__emailsError;
     if (!Object.keys(changes).length) {
       showAlert('edit-alert', 'No changes to submit.', 'info');
       return;
+    }
+    if (changes.email && changes.emails) {
+      delete changes.email;
     }
     var btn = $('edit-submit');
     btn.disabled = true;
@@ -320,6 +352,7 @@
     company = firstRow(coRes.data);
     fillProfile(company, membership);
     if (membership.my_role === 'owner' && company) {
+      if (window.MemberEmails) MemberEmails.bind($('e-emails'));
       fillEditForm(company);
       $('edit-form').addEventListener('submit', submitEdit);
       await loadRequests();

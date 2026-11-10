@@ -18,6 +18,7 @@
 <link rel="stylesheet" href="../assets/css/portal.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="../assets/js/pu-auth.js" defer></script>
+<script src="../assets/js/member-emails.js" defer></script>
 <script src="assets/member.js" defer></script>
 </head>
 <body data-pu-root="../" data-pu-page="member-home" style="background:var(--bg-soft);min-height:100vh;display:flex;flex-direction:column;">
@@ -58,7 +59,7 @@
           <dl class="member-dl">
             <div><dt>Company</dt><dd id="mp-company">—</dd></div>
             <div><dt>Contact</dt><dd id="mp-contact">—</dd></div>
-            <div><dt>Email</dt><dd id="mp-email">—</dd></div>
+            <div><dt>Emails</dt><dd id="mp-email">—</dd></div>
             <div><dt>Location</dt><dd id="mp-location">—</dd></div>
             <div><dt>Ports</dt><dd id="mp-ports">—</dd></div>
             <div><dt>Website</dt><dd id="mp-website">—</dd></div>
@@ -95,9 +96,10 @@
               <label for="e-contact">Contact person</label>
               <input id="e-contact" name="contact_person" type="text" maxlength="300">
             </div>
-            <div class="field">
-              <label for="e-email">Main email</label>
-              <input id="e-email" name="email" type="email" maxlength="300" autocomplete="off">
+            <div class="field member-span-2" id="e-emails">
+              <div class="email-list" data-email-list></div>
+              <button type="button" class="btn btn-outline" data-email-add>Add email</button>
+              <p class="field-note muted">Up to 8 addresses. Each one is labelled Main, Import or Export. Several Main addresses are allowed.</p>
             </div>
             <div class="field">
               <label for="e-website">Website</label>

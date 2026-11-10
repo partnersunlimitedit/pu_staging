@@ -136,12 +136,39 @@
       portsText: $('m-ports').value || '',
       website: ($('m-website').value || '').trim(),
       description: ($('m-description').value || '').trim(),
-      email: ($('m-email').value || '').trim(),
       membership_tier: ($('m-tier').value || '').trim(),
       renewal_date: $('m-renewal').value || '',
       status: $('m-status').value || 'pending',
       notes: ($('m-notes').value || '').trim()
     };
+  }
+
+  var emailsLoadSeq = 0;
+
+  async function hydrateEmails(m, isNew) {
+    var box = $('m-emails');
+    if (!box || !window.MemberEmails) return;
+    MemberEmails.bind(box);
+    var seq = ++emailsLoadSeq;
+    var rows;
+    if (isNew) {
+      MemberEmails.renderList(box, [{ label: 'main', email: '' }], { blankIfEmpty: true });
+      return;
+    }
+    try {
+      rows = await MemberEmails.loadForAdmin(client, m);
+    } catch (err) {
+      rows = MemberEmails.rowsFromMember(m);
+    }
+    if (seq !== emailsLoadSeq) return;
+    MemberEmails.renderList(box, rows || [], { blankIfEmpty: false });
+  }
+
+  function readValidatedEmails() {
+    if (!window.MemberEmails) {
+      return { ok: false, error: 'Email list is not available.', emails: [] };
+    }
+    return MemberEmails.validate(MemberEmails.collectFrom($('m-emails')));
   }
 
   /* ---------- MEMBERS PAGE ---------- */
@@ -173,13 +200,13 @@
     $('m-ports').value = portsToText(m && m.ports);
     $('m-website').value = (m && m.website) || '';
     $('m-description').value = (m && m.description) || '';
-    $('m-email').value = (m && m.email) || '';
     $('m-tier').value = (m && m.membership_tier) || '';
     $('m-renewal').value = toDateInput(m && m.renewal_date);
     $('m-status').value = (m && m.status) || 'pending';
     $('m-notes').value = (m && m.notes) || '';
     $('m-created').textContent = m && m.created_at ? fmtDate(m.created_at) : '—';
     $('m-updated').textContent = m && m.updated_at ? fmtDate(m.updated_at) : '—';
+    hydrateEmails(m, isNew);
 
     var hideBtn = $('admin-hide-btn');
     var removeBtn = $('admin-remove-btn');
@@ -242,9 +269,13 @@
     return membersCache.filter(function (m) {
       if (st && m.status !== st) return false;
       if (!q) return true;
+      var emailList = '';
+      if (Array.isArray(m.emails)) {
+        emailList = m.emails.map(function (row) { return (row && row.email) || ''; }).join(' ');
+      }
       var hay = [
         m.company_name, m.contact_person, m.country, m.city, m.region, m.continent,
-        m.email, m.membership_tier
+        m.email, emailList, m.membership_tier
       ].map(function (v) { return String(v || '').toLowerCase(); }).join(' ');
       return hay.indexOf(q) !== -1;
     });
@@ -383,6 +414,13 @@
       return false;
     }
 
+    var emailsCheck = readValidatedEmails();
+    if (!emailsCheck.ok) {
+      showAlert(alertEl, emailsCheck.error, 'error');
+      return false;
+    }
+    form.email = window.MemberEmails ? MemberEmails.firstMainEmail(emailsCheck.emails) : (form.email || '');
+
     var id = ($('m-id').value || '').trim();
     var args = buildMemberArgs(form);
     var saveBtn = $('admin-save-btn');
@@ -404,9 +442,28 @@
       var saved = res.data;
       if (Array.isArray(saved)) saved = saved[0];
       if (saved) {
+        var emailErr = null;
+        if (saved.id != null && RPC.adminSetMemberEmails) {
+          var emailRes = await client.rpc(RPC.adminSetMemberEmails, {
+            p_member_id: Number(saved.id),
+            p_emails: emailsCheck.emails
+          });
+          if (emailRes.error) {
+            emailErr = friendlyError(emailRes.error, 'Could not save the directory email list.');
+          } else {
+            var returned = emailRes.data;
+            if (returned && !Array.isArray(returned) && Array.isArray(returned.emails)) {
+              returned = returned.emails;
+            }
+            saved.emails = Array.isArray(returned) ? returned : emailsCheck.emails;
+            saved.email = window.MemberEmails
+              ? (MemberEmails.firstMainEmail(saved.emails) || null)
+              : (form.email || null);
+          }
+        }
         upsertCache(saved);
         fillForm(saved, false);
-        showAlert(alertEl, 'Saved.', 'ok');
+        showAlert(alertEl, emailErr ? ('Member saved, but the email list could not be updated. ' + emailErr) : 'Saved.', emailErr ? 'error' : 'ok');
         if (history.replaceState) {
           history.replaceState(null, '', 'members.html?id=' + encodeURIComponent(saved.id));
         }
@@ -434,6 +491,7 @@
     if (!auth) return;
 
     $('admin-denied').hidden = true;
+    if (window.MemberEmails) MemberEmails.bind($('m-emails'));
     showView('list');
 
     $('admin-signout-btn').addEventListener('click', signOut);
@@ -784,6 +842,9 @@
   var pendingRejectId = null;
 
   function formatChangeVal(v) {
+    if (window.MemberEmails && typeof MemberEmails.formatChangeVal === 'function') {
+      return MemberEmails.formatChangeVal(v);
+    }
     if (v == null || v === '') return '—';
     if (Array.isArray(v)) return v.join(', ') || '—';
     return String(v);

@@ -244,8 +244,8 @@
   margin: .75rem 0;
 }
 .edit-diff-head { font-weight: 700; color: var(--ink-soft); font-size: .78rem; text-transform: uppercase; letter-spacing: .06em; }
-.edit-diff-old { color: var(--muted); }
-.edit-diff-new { color: var(--ink); font-weight: 600; }
+.edit-diff-old { color: var(--muted); white-space: pre-wrap; }
+.edit-diff-new { color: var(--ink); font-weight: 600; white-space: pre-wrap; }
 .edit-diff-changed .edit-diff-new { color: #6d28d9; }
 
 /* Modal + danger button (also used on member staff) */
@@ -298,4 +298,27 @@
   .member-span-2 { grid-column: auto; }
   .edit-diff { grid-template-columns: 1fr; }
   .portal-table { display: block; overflow-x: auto; }
+}
+
+/* Labeled directory email rows (admin + member portal) */
+.email-list {
+  display: grid;
+  gap: .85rem;
+  margin: 0 0 .85rem;
+}
+.email-row {
+  display: grid;
+  grid-template-columns: 9rem minmax(0, 1fr) auto;
+  gap: .75rem 1rem;
+  align-items: end;
+}
+.email-row-actions {
+  display: flex;
+  align-items: center;
+  padding-bottom: .1rem;
+}
+.email-row-remove { white-space: nowrap; }
+@media (max-width: 720px) {
+  .email-row { grid-template-columns: 1fr; }
+  .email-row-actions { padding-bottom: 0; }
 }
