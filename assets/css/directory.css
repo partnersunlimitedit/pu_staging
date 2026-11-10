@@ -113,6 +113,35 @@
 .dir-meta div { display: grid; grid-template-columns: 6.2rem 1fr; gap: .5rem; }
 .dir-meta dt { font-weight: 600; color: var(--ink-soft); }
 .dir-meta dd { margin: 0; color: var(--body); overflow-wrap: anywhere; }
+.dir-email {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: .15rem .7rem;
+  max-width: 100%;
+}
+.dir-copy-email {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: .82rem;
+  font-weight: 600;
+  letter-spacing: .02em;
+  color: var(--brand);
+  text-decoration: underline;
+  text-underline-offset: .15em;
+  cursor: pointer;
+  transition: color .2s ease;
+}
+.dir-copy-email:hover { color: var(--brand-dark); }
+.dir-copy-email.is-copied,
+.dir-copy-email.is-failed {
+  color: var(--ink-soft);
+  text-decoration: none;
+}
+
 .dir-card-desc { font-size: .93rem; color: var(--muted); margin-bottom: 1.25rem; }
 .dir-card-actions { margin-top: auto; display: flex; flex-wrap: wrap; gap: .6rem; }
 .dir-card-actions .btn { padding: .65rem 1.2rem; font-size: .88rem; }
@@ -149,7 +178,8 @@
   .dir-spinner { animation-duration: 2.4s; }
   .dir-filters,
   .dir-filters input[type="search"],
-  .dir-filters select {
+  .dir-filters select,
+  .dir-copy-email {
     transition: none;
   }
 }

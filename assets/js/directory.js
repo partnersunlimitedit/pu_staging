@@ -2,7 +2,8 @@
    Reads public member listings from Supabase (read-only, public key).
    Filters by location (continent -> country) and a text search (company, city, or port).
    If a member or admin is signed in, contact person and email are loaded
-   via RPC directory_member_contacts and merged onto cards by id. */
+   via RPC directory_member_contacts and merged onto cards by id. A copy
+   button is shown next to an email only when that email is already on the card. */
 (function () {
   'use strict';
 
@@ -93,6 +94,80 @@
     if (/^mailto:/i.test(s)) s = s.slice(7);
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s)) return null;
     return s;
+  }
+
+
+  // Copy text to the clipboard. Prefer the Clipboard API; fall back to a
+  // hidden textarea + execCommand so this still works on older browsers.
+  // Never alert() the address.
+  function copyTextFallback(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.setAttribute('aria-hidden', 'true');
+    ta.tabIndex = -1;
+    ta.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;padding:0;border:0;opacity:0;';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try { ta.setSelectionRange(0, ta.value.length); } catch (e) {}
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) {}
+    document.body.removeChild(ta);
+    return ok;
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+      return navigator.clipboard.writeText(text).catch(function () {
+        if (copyTextFallback(text)) return;
+        throw new Error('copy failed');
+      });
+    }
+    return copyTextFallback(text) ? Promise.resolve() : Promise.reject(new Error('copy failed'));
+  }
+
+  var COPY_FEEDBACK_MS = 1800;
+
+  function restoreCopyButton(btn) {
+    var email = btn.getAttribute('data-email') || '';
+    btn.textContent = 'Copy';
+    btn.setAttribute('aria-label', 'Copy email address ' + email);
+    btn.classList.remove('is-copied', 'is-failed');
+  }
+
+  function setCopyFeedback(btn, ok) {
+    if (btn._copyTimer) {
+      clearTimeout(btn._copyTimer);
+      btn._copyTimer = null;
+    }
+    var email = btn.getAttribute('data-email') || '';
+    if (ok) {
+      btn.textContent = 'Copied';
+      btn.setAttribute('aria-label', 'Copied ' + email);
+      btn.classList.add('is-copied');
+      btn.classList.remove('is-failed');
+    } else {
+      btn.textContent = "Couldn't copy";
+      btn.setAttribute('aria-label', "Couldn't copy " + email);
+      btn.classList.add('is-failed');
+      btn.classList.remove('is-copied');
+    }
+    btn._copyTimer = setTimeout(function () {
+      btn._copyTimer = null;
+      restoreCopyButton(btn);
+    }, COPY_FEEDBACK_MS);
+  }
+
+  function onCopyEmailClick(e) {
+    var btn = e.currentTarget;
+    var email = btn.getAttribute('data-email');
+    if (!email) return;
+    copyText(email).then(function () {
+      setCopyFeedback(btn, true);
+    }).catch(function () {
+      setCopyFeedback(btn, false);
+    });
   }
 
   function showSessionNote(msg) {
@@ -238,9 +313,18 @@
     if (person) row('Contact', person);
     var email = safeEmail(m.email);
     if (email) {
+      var wrap = el('span', 'dir-email');
       var mail = el('a', null, email);
       mail.href = 'mailto:' + email;
-      row('Email', null, mail);
+      var copyBtn = el('button', 'dir-copy-email', 'Copy');
+      copyBtn.type = 'button';
+      copyBtn.setAttribute('data-email', email);
+      copyBtn.setAttribute('aria-label', 'Copy email address ' + email);
+      copyBtn.setAttribute('aria-live', 'polite');
+      copyBtn.addEventListener('click', onCopyEmailClick);
+      wrap.appendChild(mail);
+      wrap.appendChild(copyBtn);
+      row('Email', null, wrap);
     }
     if (dl.children.length) li.appendChild(dl);
     else li.classList.add('is-compact');
