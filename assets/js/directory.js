@@ -1,6 +1,6 @@
 /* Partners Unlimited — Member Directory
    Reads public member listings from Supabase (read-only, public key).
-   Filters by location only: continent -> country.
+   Filters by location (continent -> country) and a text search (company, city, or port).
    If a member or admin is signed in, contact person and email are loaded
    via RPC directory_member_contacts and merged onto cards by id. */
 (function () {
@@ -14,6 +14,7 @@
   var els = {
     continent: document.getElementById('f-continent'),
     country: document.getElementById('f-country'),
+    search: document.getElementById('f-search'),
     reset: document.getElementById('f-reset'),
     count: document.getElementById('dir-count'),
     notice: document.getElementById('dir-notice'),
@@ -108,12 +109,45 @@
   }
 
   function setFiltersEnabled(on) {
-    [els.continent, els.country, els.reset].forEach(function (c) { c.disabled = !on; });
+    [els.continent, els.country, els.search, els.reset].forEach(function (c) {
+      if (c) c.disabled = !on;
+    });
   }
 
   /* ---------- filters ---------- */
   function current() {
-    return { continent: els.continent.value, country: els.country.value };
+    return {
+      continent: els.continent.value,
+      country: els.country.value,
+      q: els.search ? els.search.value.trim() : ''
+    };
+  }
+
+  function searchWords() {
+    return current().q.toLowerCase().split(/\s+/).filter(Boolean);
+  }
+
+  // Public fields, plus contact_person/email only if already merged onto the object
+  // (signed-in RPC). Public visitors must not search hidden emails.
+  function searchableText(m) {
+    var parts = [
+      m.company_name,
+      m.city,
+      m.country,
+      m.continent,
+      Array.isArray(m.ports) ? m.ports.join(' ') : m.ports,
+      m.description,
+      m.website
+    ];
+    if (Object.prototype.hasOwnProperty.call(m, 'contact_person')) parts.push(m.contact_person);
+    if (Object.prototype.hasOwnProperty.call(m, 'email')) parts.push(m.email);
+    return parts.map(function (v) { return v == null ? '' : String(v); }).join(' ').toLowerCase();
+  }
+
+  function matchesSearch(m, words) {
+    if (!words.length) return true;
+    var hay = searchableText(m);
+    return words.every(function (w) { return hay.indexOf(w) !== -1; });
   }
 
   function refreshOptions() {
@@ -142,9 +176,11 @@
 
   function filtered() {
     var f = current();
+    var words = searchWords();
     return members.filter(function (m) {
       if (f.continent && !eqi(m.continent, f.continent)) return false;
       if (f.country && !eqi(m.country, f.country)) return false;
+      if (!matchesSearch(m, words)) return false;
       return true;
     });
   }
@@ -217,7 +253,7 @@
 
   function render() {
     var list = filtered();
-    var anyFilter = !!(els.continent.value || els.country.value);
+    var anyFilter = !!(els.continent.value || els.country.value || (els.search && els.search.value.trim()));
     els.reset.disabled = !anyFilter;
     els.grid.innerHTML = '';
     if (!list.length) {
@@ -244,8 +280,10 @@
   function resetAll() {
     els.continent.value = '';
     els.country.value = '';
+    if (els.search) els.search.value = '';
     onChange();
-    els.continent.focus();
+    if (els.search) els.search.focus();
+    else els.continent.focus();
   }
 
   /* ---------- data ---------- */
@@ -270,10 +308,11 @@
       .then(function (rows) {
         clearTimeout(timer);
         members = Array.isArray(rows) ? rows : [];
-        // Apply filters from the address bar, e.g. directory.html?country=China
+        // Apply filters from the address bar, e.g. directory.html?country=China&q=port
         var p = new URLSearchParams(location.search);
         els.continent.innerHTML = '';
         refreshOptions();
+        if (els.search) els.search.value = p.get('q') || '';
         var bad = false;
         [['continent', els.continent], ['country', els.country]].forEach(function (pair) {
           var want = (p.get(pair[0]) || '').trim();
@@ -284,8 +323,8 @@
         if (bad) {
           var kept = els.country.value || els.continent.value;
           showNotice('That location isn\u2019t in the directory yet; showing all members' + (kept ? ' in ' + kept : '') + '.');
-          syncUrl(); // drops the unknown parameter(s) from the address bar
-        } else if (Array.from(p.keys()).some(function (k) { return k !== 'continent' && k !== 'country'; })) {
+          syncUrl(); // drops the unknown location parameter(s); keeps q
+        } else if (Array.from(p.keys()).some(function (k) { return k !== 'continent' && k !== 'country' && k !== 'q'; })) {
           syncUrl(); // silently drop old/unsupported parameters such as ?place=
         }
         setFiltersEnabled(true);
@@ -369,6 +408,7 @@
 
   els.continent.addEventListener('change', function () { els.country.value = ''; onChange(); });
   els.country.addEventListener('change', onChange);
+  if (els.search) els.search.addEventListener('input', onChange);
   els.reset.addEventListener('click', resetAll);
   els.emptyReset.addEventListener('click', resetAll);
   els.retry.addEventListener('click', load);
