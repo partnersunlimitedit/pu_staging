@@ -596,6 +596,12 @@ button { font: inherit; cursor: pointer; }
   margin: 2.25rem 0 1rem;
 }
 .prose h2:first-child { margin-top: 0; }
+.prose h3 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin: 1.6rem 0 .7rem;
+  color: var(--ink);
+}
 .prose p { margin-bottom: 1.1rem; }
 .prose strong { color: var(--ink); }
 
@@ -884,12 +890,14 @@ button { font: inherit; cursor: pointer; }
   gap: 2.5rem;
   padding-block: clamp(3rem, 6vw, 4.5rem);
 }
-.footer-col h5 {
+.footer-col h5,
+.footer-col .footer-heading {
   color: #fff;
   font-size: .95rem;
   font-weight: 700;
   letter-spacing: .04em;
-  margin-bottom: 1.1rem;
+  margin: 0 0 1.1rem;
+  line-height: 1.18;
 }
 .footer-col ul { display: grid; gap: .55rem; }
 .footer-col a { color: #94a3b8; font-size: .95rem; }
@@ -1204,4 +1212,37 @@ main:focus { outline: none; }
 /* Footer without the (hidden) Follow Us column */
 @media (min-width: 1025px) {
   .footer-grid { grid-template-columns: 1.4fr .9fr .8fr 1.4fr; }
+}
+
+
+/* Staging preview banner (shared with the directory) */
+.dir-preview {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 0 2rem;
+  padding: .55rem 1.1rem;
+  font-size: .9rem;
+  color: var(--brand-ink);
+  background: var(--brand-soft);
+  border: 1px solid rgba(124, 58, 237, .18);
+  border-radius: 999px;
+}
+.dir-preview svg { flex-shrink: 0; color: var(--brand); }
+.dir-preview strong { color: var(--brand-ink); }
+
+.prose .policy-updated {
+  margin-top: 2.25rem;
+  margin-bottom: 0;
+  color: var(--muted);
+  font-size: .9rem;
+}
+
+.page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .75rem;
+  margin: 1.5rem 0 0;
 }
