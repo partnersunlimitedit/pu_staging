@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Member Directory | Partners Unlimited</title>
-<meta name="description" content="Find independent freight forwarders in the Partners Unlimited logistics network by continent and country.">
+<meta name="description" content="Find independent freight forwarders in the Partners Unlimited logistics network. Search by company, city, or port, or narrow the list by continent and country.">
 <!-- Site origin for absolute Open Graph / Twitter URLs. Switch to https://www.partnersunlimited.net/ at go-live. -->
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Partners Unlimited">
 <meta property="og:title" content="Member Directory | Partners Unlimited">
-<meta property="og:description" content="Find independent freight forwarders in the Partners Unlimited logistics network by continent and country.">
+<meta property="og:description" content="Find independent freight forwarders in the Partners Unlimited logistics network. Search by company, city, or port, or narrow the list by continent and country.">
 <meta property="og:url" content="https://partnersunlimitedit.github.io/pu_staging/directory.html">
 <meta property="og:image" content="https://partnersunlimitedit.github.io/pu_staging/assets/img/og-image.jpg">
 <meta name="twitter:card" content="summary_large_image">
@@ -82,10 +82,14 @@
       <div class="section-head" data-reveal>
         <p class="eyebrow">Our Network</p>
         <h2 class="section-title">Find a Partners Unlimited member</h2>
-        <p class="lead">Browse our independent freight forwarding members around the world. Narrow the list by continent and country.</p>
+        <p class="lead">Browse our independent freight forwarding members around the world. Search by company, city, or port, or narrow the list by continent and country.</p>
       </div>
 
-      <form class="dir-filters" id="dir-filters" aria-label="Filter members by location" onsubmit="return false;">
+      <form class="dir-filters" id="dir-filters" aria-label="Search and filter members" onsubmit="return false;">
+        <div class="field dir-filters-search">
+          <label for="f-search">Search</label>
+          <input type="search" id="f-search" name="q" placeholder="Company, city, or port" autocomplete="off" spellcheck="false" disabled>
+        </div>
         <div class="field">
           <label for="f-continent">Continent</label>
           <select id="f-continent" name="continent" disabled>
@@ -117,7 +121,7 @@
 
       <div class="dir-state dir-state-msg" id="dir-empty" hidden>
         <p class="dir-state-title">No members match these filters</p>
-        <p>Try a different location, or clear the filters to see all members.</p>
+        <p>Try a different search or location, or clear the filters to see all members.</p>
         <button type="button" class="btn btn-primary" id="dir-empty-reset">Clear filters</button>
       </div>
 

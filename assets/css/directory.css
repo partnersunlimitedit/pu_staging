@@ -12,9 +12,34 @@
   border: 1px solid var(--line-soft);
   border-radius: var(--radius-lg);
   padding: clamp(1.25rem, 3vw, 1.75rem);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-sm), 0 10px 24px -18px rgba(15, 23, 42, .22);
+  position: sticky;
+  top: var(--header-h);
+  z-index: 40;
 }
+.dir-filters-search { grid-column: 1 / -1; }
 .dir-filters .field label { margin-bottom: .45rem; }
+.dir-filters input[type="search"] {
+  width: 100%;
+  font: inherit;
+  font-size: .95rem;
+  color: var(--ink);
+  background-color: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: .8rem 1rem;
+  -webkit-appearance: none;
+  appearance: none;
+  transition: border-color .2s ease, box-shadow .2s ease, background-color .2s ease;
+}
+.dir-filters input[type="search"]::placeholder { color: var(--muted); }
+.dir-filters input[type="search"]:focus {
+  outline: none;
+  border-color: var(--brand);
+  background-color: #fff;
+  box-shadow: 0 0 0 4px rgba(124, 58, 237, .12);
+}
+.dir-filters input[type="search"]:disabled { cursor: not-allowed; opacity: .6; }
 .dir-filters select {
   width: 100%;
   font: inherit;
@@ -122,17 +147,29 @@
 @media (prefers-reduced-motion: reduce) {
   .dir-card:hover { transform: none; }
   .dir-spinner { animation-duration: 2.4s; }
+  .dir-filters,
+  .dir-filters input[type="search"],
+  .dir-filters select {
+    transition: none;
+  }
 }
 
 @media (max-width: 1024px) {
   .dir-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dir-filters-search,
   .dir-filters-actions { grid-column: 1 / -1; }
   .dir-grid { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 720px) {
-  .dir-filters { grid-template-columns: 1fr; }
+  /* Keep continent and country side by side so the sticky bar stays compact. */
+  .dir-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dir-filters-search,
+  .dir-filters-actions { grid-column: 1 / -1; }
   .dir-filters-actions .btn { width: 100%; }
   .dir-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 420px) {
+  .dir-filters { grid-template-columns: 1fr; }
 }
 
 /* Staging preview notice (remove before go-live) */
