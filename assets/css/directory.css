@@ -113,12 +113,23 @@
 .dir-meta div { display: grid; grid-template-columns: 6.2rem 1fr; gap: .5rem; }
 .dir-meta dt { font-weight: 600; color: var(--ink-soft); }
 .dir-meta dd { margin: 0; color: var(--body); overflow-wrap: anywhere; }
+.dir-email-list {
+  display: grid;
+  gap: .4rem;
+}
 .dir-email {
   display: inline-flex;
   align-items: baseline;
   flex-wrap: wrap;
   gap: .15rem .7rem;
   max-width: 100%;
+}
+.dir-email-label {
+  flex: 0 0 auto;
+  min-width: 3.75em;
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--ink-soft);
 }
 .dir-copy-email {
   margin: 0;
