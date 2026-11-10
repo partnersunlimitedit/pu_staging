@@ -12,7 +12,7 @@
     // RPC / table names — change here if PU Data renames them
     rpc: {
       isAdmin: 'is_admin',
-      // Admin members (SECURITY DEFINER — use these for private cols + all writes)
+      // Admin members
       adminListMembers: 'admin_list_members',
       adminGetMember: 'admin_get_member',
       adminInsertMember: 'admin_insert_member',
@@ -20,11 +20,25 @@
       adminSetConsent: 'admin_set_consent',
       adminHideMember: 'admin_hide_member',
       adminRemoveMember: 'admin_remove_member',
-      // Admin users
+      // Admin users / roles
       adminListUsers: 'admin_list_users',
-      adminSetAdmin: 'admin_set_admin'
-      // Member self-read (not confirmed yet)
-      // getMyMember: 'get_my_member'
+      adminSetAdmin: 'admin_set_admin',
+      // Member portal (owner + staff)
+      myMembership: 'my_membership',
+      myCompany: 'my_company',
+      myEditRequests: 'my_edit_requests',
+      ownerListStaff: 'owner_list_staff',
+      ownerRemoveStaff: 'owner_remove_staff',
+      ownerSubmitEdit: 'owner_submit_edit',
+      ownerCancelEdit: 'owner_cancel_edit',
+      // Admin edit review + member logins
+      adminListEditRequests: 'admin_list_edit_requests',
+      adminApproveEdit: 'admin_approve_edit',
+      adminRejectEdit: 'admin_reject_edit',
+      adminListMemberUsers: 'admin_list_member_users',
+      adminLinkUser: 'admin_link_user',
+      adminUnlinkUser: 'admin_unlink_user',
+      adminSetOwner: 'admin_set_owner'
     },
     tables: {
       profiles: 'profiles',
@@ -33,9 +47,12 @@
     // Paths from site root (no leading slash — works on GitHub Pages subpath)
     paths: {
       signIn: 'member-area.html',
-      adminMembers: 'admin/members.html',
+      setPassword: 'member/set-password.html',
       memberHome: 'member/index.html',
-      admins: 'admin/admins.html'
+      memberStaff: 'member/staff.html',
+      adminMembers: 'admin/members.html',
+      admins: 'admin/admins.html',
+      pendingEdits: 'admin/pending-edits.html'
     }
   };
 
@@ -101,25 +118,37 @@
     var code = errorCode(err);
     // Branch on PostgREST/Postgres error.code (not HTTP status)
     if (code === '42501') {
-      return 'You are not authorized to do that. Admin access is required.';
+      return 'You are not authorized to do that.';
     }
     if (code === '23514') {
       return 'Consent is required before a member can be active. Tick “Member has agreed to be listed”, or use Approve (which records consent).';
     }
     if (code === '22023') {
-      return 'That status is not valid. Use pending, active, or removed.';
+      return 'That value is not valid. Check the fields (for example name, email, location or status) and try again.';
     }
     if (code === 'P0002') {
-      return 'Record not found. It may have been removed, or the user has no login yet.';
+      return 'Record not found. It may have been removed, or the person has no login yet.';
     }
     if (code === '55000') {
-      return 'That change is not allowed: you cannot remove or demote the last remaining admin.';
+      return 'That change is not allowed in the current state. The company may be removed, already have an owner, or this would remove the company owner or the last admin.';
+    }
+    if (code === 'PU001') {
+      return 'This company already has 5 staff logins. Remove one to add another.';
+    }
+    if (code === 'PU002') {
+      return 'An edit is already waiting for review. Cancel it, or wait for an admin to decide, before submitting another.';
+    }
+    if (code === 'PU003') {
+      return 'This edit request has already been approved, rejected or cancelled.';
+    }
+    if (code === 'PU004') {
+      return 'This login already belongs to another company.';
     }
     if (isMissingDbObject(err)) {
       return 'A required database function is not available yet. Please try again later.';
     }
     if (isRlsError(err)) {
-      return 'You are not authorized to do that. Admin access is required.';
+      return 'You are not authorized to do that.';
     }
     var msg = String(err.message || err.error_description || '');
     if (/invalid login|invalid credentials|email not confirmed/i.test(msg)) {
@@ -188,19 +217,30 @@
     location.replace(urlFor('signIn'));
   }
 
-  function magicLinkRedirectTo() {
-    // Prefer current origin + site path to member-area (works locally and on Pages)
+  function siteBaseUrl() {
     try {
       var u = new URL(location.href);
-      // Climb out of /admin or /member if needed
       var path = u.pathname.replace(/\/admin\/.*$/, '/').replace(/\/member\/.*$/, '/');
       if (!/\/$/.test(path) && path.indexOf('.html') !== -1) {
         path = path.replace(/[^/]+$/, '');
       }
-      return u.origin + path + CONFIG.paths.signIn;
+      return u.origin + path;
     } catch (e) {
-      return location.origin + '/' + CONFIG.paths.signIn;
+      return location.origin + '/';
     }
+  }
+
+  function absoluteUrlFor(pathKey) {
+    var rel = CONFIG.paths[pathKey] || '';
+    return siteBaseUrl() + rel;
+  }
+
+  function magicLinkRedirectTo() {
+    return absoluteUrlFor('signIn');
+  }
+
+  function setPasswordRedirectTo() {
+    return absoluteUrlFor('setPassword');
   }
 
   global.PUAuth = {
@@ -217,6 +257,9 @@
     checkIsAdmin: checkIsAdmin,
     routeAfterSignIn: routeAfterSignIn,
     signOut: signOut,
-    magicLinkRedirectTo: magicLinkRedirectTo
+    siteBaseUrl: siteBaseUrl,
+    absoluteUrlFor: absoluteUrlFor,
+    magicLinkRedirectTo: magicLinkRedirectTo,
+    setPasswordRedirectTo: setPasswordRedirectTo
   };
 })(typeof window !== 'undefined' ? window : this);

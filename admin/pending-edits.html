@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pending edits — Admin — Partners Unlimited</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="description" content="Review member profile edit requests.">
+<link rel="icon" type="image/png" href="../assets/img/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/css/style.css">
+<link rel="stylesheet" href="../assets/css/portal.css">
+<link rel="stylesheet" href="assets/admin.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../assets/js/main.js" defer></script>
+<script src="../assets/js/pu-auth.js" defer></script>
+<script src="assets/admin.js" defer></script>
+</head>
+<body class="admin-body" data-pu-root="../" data-admin-page="pending-edits">
+
+<header class="admin-bar">
+  <div class="container admin-bar-inner">
+    <a class="admin-brand" href="members.html" title="Admin">
+      <img src="../assets/img/logo.png" alt="Partners Unlimited" width="120" height="75">
+      <span>Admin</span>
+    </a>
+    <nav class="admin-nav" aria-label="Admin">
+      <a href="members.html" data-admin-nav="list">Members</a>
+      <a href="pending-edits.html" class="is-active" data-admin-nav="edits">Pending edits</a>
+      <a href="admins.html" data-admin-nav="admins">Admins</a>
+      <button type="button" class="btn btn-primary admin-nav-btn" id="admin-signout-btn">Sign out</button>
+    </nav>
+  </div>
+</header>
+
+<main class="admin-main">
+  <div class="container admin-shell">
+    <div id="admin-gate" class="admin-state" hidden>
+      <div class="dir-spinner" aria-hidden="true"></div>
+      <p class="dir-state-title">Checking access…</p>
+    </div>
+
+    <div class="admin-page-head">
+      <div>
+        <p class="eyebrow">Admin</p>
+        <h1 class="section-title" style="margin-bottom:.35rem;">Pending edits</h1>
+        <p class="muted" id="edits-count">Loading…</p>
+      </div>
+      <div class="field" style="min-width:12rem;">
+        <label for="edits-status">Status</label>
+        <select id="edits-status">
+          <option value="pending" selected>Pending</option>
+          <option value="all">All</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="edits-alert" class="admin-alert" hidden role="alert"></div>
+
+    <div id="edits-loading" class="admin-state" hidden>
+      <div class="dir-spinner" aria-hidden="true"></div>
+      <p>Loading requests…</p>
+    </div>
+    <div id="edits-empty" class="admin-state admin-state-msg" hidden>
+      <p class="dir-state-title">No edit requests</p>
+      <p class="muted">When an owner submits a profile change, it will appear here for review.</p>
+    </div>
+    <div id="edits-error" class="admin-state admin-state-msg" hidden role="alert">
+      <p class="dir-state-title">Could not load requests</p>
+      <p class="muted" id="edits-error-msg"></p>
+      <button type="button" class="btn btn-outline" id="edits-retry">Retry</button>
+    </div>
+
+    <div id="edits-list"></div>
+  </div>
+</main>
+
+<div id="edits-reject-modal" class="admin-modal" hidden>
+  <div class="admin-modal-backdrop" data-modal-close></div>
+  <div class="admin-modal-dialog form-card" role="dialog" aria-modal="true" aria-labelledby="edits-reject-title">
+    <h2 id="edits-reject-title" class="section-title" style="font-size:1.25rem;">Reject this request?</h2>
+    <p class="muted">Optionally add a reason the owner will see.</p>
+    <div class="field" style="margin-top:1rem;">
+      <label for="edits-reject-reason">Reason</label>
+      <textarea id="edits-reject-reason" rows="3" maxlength="1000"></textarea>
+    </div>
+    <div class="admin-modal-actions">
+      <button type="button" class="btn btn-outline" data-modal-close>Cancel</button>
+      <button type="button" class="btn admin-btn-danger" id="edits-reject-confirm">Reject</button>
+    </div>
+  </div>
+</div>
+
+<footer class="admin-footer">
+  <div class="container"><p>Partners Unlimited — admin portal (staging)</p></div>
+</footer>
+
+</body>
+</html>
