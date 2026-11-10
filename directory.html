@@ -23,7 +23,9 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/style.css">
 <link rel="stylesheet" href="assets/css/directory.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="assets/js/main.js" defer></script>
+<script src="assets/js/pu-auth.js" defer></script>
 <script src="assets/js/directory.js" defer></script>
 </head>
 <body>
@@ -101,6 +103,8 @@
         </div>
       </form>
       <p class="dir-privacy-link"><a href="privacy.html">Terms &amp; Privacy</a></p>
+
+      <p class="dir-session-note" id="dir-session-note" role="status" hidden></p>
 
       <p class="dir-notice" id="dir-notice" role="status" hidden></p>
 
