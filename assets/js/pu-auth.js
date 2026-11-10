@@ -17,7 +17,6 @@
       adminGetMember: 'admin_get_member',
       adminInsertMember: 'admin_insert_member',
       adminUpdateMember: 'admin_update_member',
-      adminSetConsent: 'admin_set_consent',
       adminHideMember: 'admin_hide_member',
       adminRemoveMember: 'admin_remove_member',
       // Admin users / roles

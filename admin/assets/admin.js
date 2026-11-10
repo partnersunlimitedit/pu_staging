@@ -118,8 +118,7 @@
       p_email: form.email == null ? '' : form.email,
       p_status: form.status || 'pending',
       p_membership_tier: form.membership_tier == null ? '' : form.membership_tier,
-      p_notes: form.notes == null ? '' : form.notes,
-      p_set_consent_now: !!opts.setConsentNow
+      p_notes: form.notes == null ? '' : form.notes
     };
     if (form.renewal_date) args.p_renewal_date = form.renewal_date;
     else if (opts.includeNullRenewal) args.p_renewal_date = null;
@@ -141,8 +140,7 @@
       membership_tier: ($('m-tier').value || '').trim(),
       renewal_date: $('m-renewal').value || '',
       status: $('m-status').value || 'pending',
-      notes: ($('m-notes').value || '').trim(),
-      consentChecked: !!($('m-consent') && $('m-consent').checked)
+      notes: ($('m-notes').value || '').trim()
     };
   }
 
@@ -154,19 +152,8 @@
   function syncApproveButton() {
     var approve = $('admin-approve-btn');
     if (!approve) return;
-    // Consent is an optional note only. Approve sets status to active and does not require it.
     approve.disabled = false;
     approve.title = 'Set status to active';
-  }
-
-  function updateConsentNote(member) {
-    var note = $('m-consent-note');
-    if (!note) return;
-    var recorded = member && member.consent_at ? fmtDate(member.consent_at) : '';
-    var base = 'Optional admin note only. This does not control the public directory — listing follows Status (Active).';
-    note.textContent = recorded
-      ? (base + ' Recorded on ' + recorded + '.')
-      : (base + ' Tick to record today’s date.');
   }
 
   function fillForm(m, isNew) {
@@ -190,8 +177,6 @@
     $('m-tier').value = (m && m.membership_tier) || '';
     $('m-renewal').value = toDateInput(m && m.renewal_date);
     $('m-status').value = (m && m.status) || 'pending';
-    $('m-consent').checked = !!(m && m.consent_at);
-    updateConsentNote(m);
     $('m-notes').value = (m && m.notes) || '';
     $('m-created').textContent = m && m.created_at ? fmtDate(m.created_at) : '—';
     $('m-updated').textContent = m && m.updated_at ? fmtDate(m.updated_at) : '—';
@@ -290,7 +275,7 @@
   }
 
   function openNew() {
-    fillForm({ status: 'pending', consent_at: null, ports: [] }, true);
+    fillForm({ status: 'pending', ports: [] }, true);
     showView('detail');
     if (history.replaceState) history.replaceState(null, '', 'members.html?new=1');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -399,10 +384,7 @@
     }
 
     var id = ($('m-id').value || '').trim();
-    var hadConsent = !!(currentMember && currentMember.consent_at);
-    var setConsentNow = !!(form.consentChecked && !hadConsent) || !!(extra && extra.setConsentNow);
-    // If unchecking consent on update: leave consent_at as-is (RPC can't clear via null); UI note only
-    var args = buildMemberArgs(form, { setConsentNow: setConsentNow });
+    var args = buildMemberArgs(form);
     var saveBtn = $('admin-save-btn');
     setBusy(saveBtn, true, 'Saving…');
 
@@ -470,8 +452,6 @@
       $('f-search').value = ''; $('f-status').value = '';
       renderList();
     });
-    $('m-consent').addEventListener('change', syncApproveButton);
-
     $('admin-member-form').addEventListener('submit', async function (ev) {
       ev.preventDefault();
       await saveMember();
@@ -481,18 +461,12 @@
       var alertEl = $('admin-detail-alert');
       var id = ($('m-id').value || '').trim();
       if (!id) {
-        // New row: save as active. Consent is stamped only if the optional box is ticked.
         var ok = await saveMember({ status: 'active' });
         if (ok) showAlert(alertEl, 'Member approved (status = active).', 'ok');
         return;
       }
-      // admin_update_member with p_status=active does not stamp consent_at.
-      // Only send p_set_consent_now when the optional box is newly ticked.
-      var hadConsent = !!(currentMember && currentMember.consent_at);
-      var stampConsent = !!($('m-consent') && $('m-consent').checked && !hadConsent);
       setBusy($('admin-approve-btn'), true, 'Approving…');
       var args = { p_member_id: Number(id), p_status: 'active' };
-      if (stampConsent) args.p_set_consent_now = true;
       var res = await client.rpc(RPC.adminUpdateMember, args);
       setBusy($('admin-approve-btn'), false, 'Approve');
       if (res.error) {
