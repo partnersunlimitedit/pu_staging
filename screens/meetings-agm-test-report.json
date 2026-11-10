@@ -1,0 +1,215 @@
+{
+  "started_at": "2026-11-10T04:40:28.764Z",
+  "cases": [
+    {
+      "id": "fallback-live",
+      "desc": "Live TEST fetch (currently 42501 for anon). Static fallback must stay.",
+      "mode": "live",
+      "results": [
+        {
+          "screenshot": "meetings-fallback-desktop.png",
+          "next": "To be announced",
+          "entries": [
+            {
+              "year": "2026",
+              "status": "tba",
+              "location": "",
+              "dates": "",
+              "title": "AGM 2026",
+              "badge": "",
+              "text": "AGM 2026 Details to be announced"
+            },
+            {
+              "year": "2025",
+              "status": "tba",
+              "location": "",
+              "dates": "",
+              "title": "AGM 2025",
+              "badge": "",
+              "text": "AGM 2025 Details to be announced"
+            },
+            {
+              "year": "2024",
+              "status": "past",
+              "location": "Barcelona, Spain",
+              "dates": "4 – 8 March, 2024",
+              "title": "AGM 2024",
+              "badge": "Past meeting",
+              "text": "AGM 2024 PAST MEETING Venue: Barcelona, Spain Date: 4 – 8 March, 2024"
+            }
+          ]
+        },
+        {
+          "screenshot": "meetings-fallback-mobile.png",
+          "next": "To be announced",
+          "entries": [
+            {
+              "year": "2026",
+              "status": "tba",
+              "location": "",
+              "dates": "",
+              "title": "AGM 2026",
+              "badge": "",
+              "text": "AGM 2026 Details to be announced"
+            },
+            {
+              "year": "2025",
+              "status": "tba",
+              "location": "",
+              "dates": "",
+              "title": "AGM 2025",
+              "badge": "",
+              "text": "AGM 2025 Details to be announced"
+            },
+            {
+              "year": "2024",
+              "status": "past",
+              "location": "Barcelona, Spain",
+              "dates": "4 – 8 March, 2024",
+              "title": "AGM 2024",
+              "badge": "Past meeting",
+              "text": "AGM 2024 PAST MEETING Venue: Barcelona, Spain Date: 4 – 8 March, 2024"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "fallback-empty",
+      "desc": "API returns 0 rows. Static fallback must stay.",
+      "mode": "empty",
+      "results": [
+        {
+          "screenshot": "meetings-fallback-empty-desktop.png",
+          "next": "To be announced",
+          "entries": [
+            {
+              "year": "2026",
+              "status": "tba",
+              "location": "",
+              "dates": "",
+              "title": "AGM 2026",
+              "badge": "",
+              "text": "AGM 2026 Details to be announced"
+            },
+            {
+              "year": "2025",
+              "status": "tba",
+              "location": "",
+              "dates": "",
+              "title": "AGM 2025",
+              "badge": "",
+              "text": "AGM 2025 Details to be announced"
+            },
+            {
+              "year": "2024",
+              "status": "past",
+              "location": "Barcelona, Spain",
+              "dates": "4 – 8 March, 2024",
+              "title": "AGM 2024",
+              "badge": "Past meeting",
+              "text": "AGM 2024 PAST MEETING Venue: Barcelona, Spain Date: 4 – 8 March, 2024"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "fallback-error",
+      "desc": "API returns HTTP 500. Static fallback must stay.",
+      "mode": "error",
+      "results": [
+        {
+          "screenshot": "meetings-fallback-error-desktop.png",
+          "next": "To be announced",
+          "entries": [
+            {
+              "year": "2026",
+              "status": "tba",
+              "location": "",
+              "dates": "",
+              "title": "AGM 2026",
+              "badge": "",
+              "text": "AGM 2026 Details to be announced"
+            },
+            {
+              "year": "2025",
+              "status": "tba",
+              "location": "",
+              "dates": "",
+              "title": "AGM 2025",
+              "badge": "",
+              "text": "AGM 2025 Details to be announced"
+            },
+            {
+              "year": "2024",
+              "status": "past",
+              "location": "Barcelona, Spain",
+              "dates": "4 – 8 March, 2024",
+              "title": "AGM 2024",
+              "badge": "Past meeting",
+              "text": "AGM 2024 PAST MEETING Venue: Barcelona, Spain Date: 4 – 8 March, 2024"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "from-data",
+      "desc": "Stubbed published TEST rows (row 1 shown as Next). Live anon read is blocked by RLS; this uses the real TEST row shape.",
+      "mode": "data",
+      "results": [
+        {
+          "screenshot": "meetings-from-data-desktop.png",
+          "next": "TEST AGM – PU Admin, Test location, 1 – 5 March, 2027",
+          "entries": [
+            {
+              "year": "2028",
+              "status": "tba",
+              "location": "Test location (edited)",
+              "dates": "1 – 5 March, 2027",
+              "title": "TEST AGM – PU Admin (2)",
+              "badge": "",
+              "text": "TEST AGM – PU Admin (2) Venue: Test location (edited) Date: 1 – 5 March, 2027"
+            },
+            {
+              "year": "2027",
+              "status": "next",
+              "location": "Test location",
+              "dates": "1 – 5 March, 2027",
+              "title": "TEST AGM – PU Admin",
+              "badge": "Next meeting",
+              "text": "TEST AGM – PU Admin NEXT MEETING Venue: Test location Date: 1 – 5 March, 2027 Test row created by PU Admin. Leave unpublished."
+            }
+          ]
+        },
+        {
+          "screenshot": "meetings-from-data-mobile.png",
+          "next": "TEST AGM – PU Admin, Test location, 1 – 5 March, 2027",
+          "entries": [
+            {
+              "year": "2028",
+              "status": "tba",
+              "location": "Test location (edited)",
+              "dates": "1 – 5 March, 2027",
+              "title": "TEST AGM – PU Admin (2)",
+              "badge": "",
+              "text": "TEST AGM – PU Admin (2) Venue: Test location (edited) Date: 1 – 5 March, 2027"
+            },
+            {
+              "year": "2027",
+              "status": "next",
+              "location": "Test location",
+              "dates": "1 – 5 March, 2027",
+              "title": "TEST AGM – PU Admin",
+              "badge": "Next meeting",
+              "text": "TEST AGM – PU Admin NEXT MEETING Venue: Test location Date: 1 – 5 March, 2027 Test row created by PU Admin. Leave unpublished."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "ok": true,
+  "errors": []
+}
