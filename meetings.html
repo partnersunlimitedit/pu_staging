@@ -24,6 +24,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/style.css">
 <script src="assets/js/main.js" defer></script>
+<script src="assets/js/meetings-agm.js" defer></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -81,14 +82,14 @@
           <li>Meeting packages are all-inclusive except traveling costs.</li>
         </ul>
 
-        <!-- Next AGM announcement. A future admin editor can set this from data. -->
+        <!-- Next AGM announcement. meetings-agm.js fills this from a published status=next row, or leaves the static text if the fetch fails or returns nothing. -->
         <div class="agm-next" data-agm-next>
           <p class="agm-next-label">Next AGM</p>
           <p class="agm-next-value">To be announced</p>
         </div>
 
-        <!-- AGM entries, newest first. data-agm-year / data-agm-status / data-agm-location / data-agm-dates let a future admin editor render these from data. Location, dates and photos stay blank until announced. -->
-        <div class="agm-list">
+        <!-- AGM entries. meetings-agm.js replaces this list with published rows (hooks: data-agm-year / data-agm-status / data-agm-location / data-agm-dates). If the fetch fails or returns nothing, this static markup stays as the fallback. -->
+        <div class="agm-list" data-agm-list>
           <article class="agm-entry" data-agm-year="2026" data-agm-status="tba" data-agm-location="" data-agm-dates="">
             <div class="agm-entry-head">
               <h3>AGM 2026</h3>
