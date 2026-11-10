@@ -27,6 +27,7 @@
     </a>
     <nav class="admin-nav" aria-label="Admin">
       <a href="members.html" class="is-active" data-admin-nav="list">Members</a>
+      <a href="pending-edits.html" data-admin-nav="edits">Pending edits</a>
       <a href="admins.html" data-admin-nav="admins">Admins</a>
       <button type="button" class="btn btn-outline admin-nav-btn" id="admin-add-btn">Add member</button>
       <button type="button" class="btn btn-primary admin-nav-btn" id="admin-signout-btn">Sign out</button>
@@ -237,6 +238,31 @@
           </div>
         </div>
       </form>
+
+      <section class="form-card admin-form" id="admin-logins-card" hidden style="margin-top:1.5rem;">
+        <h2 class="section-title" style="font-size:1.15rem;">Logins</h2>
+        <p class="muted" style="margin-top:-0.4rem;margin-bottom:1rem;font-size:.9rem;">Owner and staff linked to this company. Inviting new logins is disabled until email sending is set up.</p>
+        <div id="logins-alert" class="admin-alert" hidden role="alert"></div>
+        <div id="logins-empty" class="muted" hidden>No logins linked yet.</div>
+        <div class="admin-table-wrap" id="logins-table-wrap" hidden>
+          <table class="admin-table" aria-label="Member logins">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Role</th>
+                <th>Linked</th>
+                <th>Invite</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="logins-table-body"></tbody>
+          </table>
+        </div>
+        <div class="admin-form-actions" style="border:0;padding-top:1rem;">
+          <button type="button" class="btn btn-outline" id="logins-invite-btn" disabled title="Invites are not enabled yet">Invite login</button>
+        </div>
+        <p class="field-note muted">Coming once email sending is set up.</p>
+      </section>
     </section>
   </div>
 </main>
@@ -250,6 +276,18 @@
     <div class="admin-modal-actions">
       <button type="button" class="btn btn-outline" data-modal-close>Cancel</button>
       <button type="button" class="btn admin-btn-danger" id="admin-modal-confirm">Remove</button>
+    </div>
+  </div>
+</div>
+
+<div id="logins-modal" class="admin-modal" hidden>
+  <div class="admin-modal-backdrop" data-modal-close></div>
+  <div class="admin-modal-dialog form-card" role="dialog" aria-modal="true" aria-labelledby="logins-modal-title">
+    <h2 id="logins-modal-title" class="section-title" style="font-size:1.25rem;">Confirm</h2>
+    <p class="muted" id="logins-modal-body"></p>
+    <div class="admin-modal-actions">
+      <button type="button" class="btn btn-outline" data-modal-close>Cancel</button>
+      <button type="button" class="btn btn-primary" id="logins-modal-confirm">Confirm</button>
     </div>
   </div>
 </div>

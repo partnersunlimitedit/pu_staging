@@ -103,6 +103,38 @@
         setBusy(false, 'Sign in', 'Email me a sign-in link');
       }
     });
+
+    var forgotBtn = $('pu-forgot-btn');
+    if (forgotBtn) {
+      forgotBtn.addEventListener('click', async function () {
+        showAlert('', null);
+        var email = ($('email').value || '').trim();
+        if (!email) {
+          showAlert('Enter your email address to receive a password reset link.', 'error');
+          $('email').focus();
+          return;
+        }
+        setBusy(true, null, null);
+        forgotBtn.disabled = true;
+        forgotBtn.textContent = 'Sending reset link…';
+        try {
+          var res = await client.auth.resetPasswordForEmail(email, {
+            redirectTo: PUAuth.setPasswordRedirectTo()
+          });
+          if (res.error) {
+            showAlert(PUAuth.friendlyAuthError(res.error, 'Could not send a password reset link.'), 'error');
+          } else {
+            showAlert('If that email has an account, a password reset link is on its way. Check your inbox.', 'ok');
+          }
+        } catch (err) {
+          showAlert(PUAuth.friendlyAuthError(err, 'Could not send a password reset link.'), 'error');
+        }
+        setBusy(false, 'Sign in', 'Email me a sign-in link');
+        forgotBtn.disabled = false;
+        forgotBtn.textContent = 'Forgot password?';
+      });
+    }
+
   }
 
   boot();

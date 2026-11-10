@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>My membership — Partners Unlimited</title>
 <meta name="robots" content="noindex, nofollow">
-<meta name="description" content="View your Partners Unlimited membership profile.">
+<meta name="description" content="View and update your Partners Unlimited membership profile.">
 <link rel="icon" type="image/png" href="../assets/img/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -16,7 +16,7 @@
 <script src="../assets/js/pu-auth.js" defer></script>
 <script src="assets/member.js" defer></script>
 </head>
-<body class="admin-body" data-pu-root="../" data-pu-page="member-home" style="background:var(--bg-soft);min-height:100vh;display:flex;flex-direction:column;">
+<body data-pu-root="../" data-pu-page="member-home" style="background:var(--bg-soft);min-height:100vh;display:flex;flex-direction:column;">
 
 <header class="member-bar">
   <div class="container member-bar-inner">
@@ -25,6 +25,8 @@
       <span>Member</span>
     </a>
     <div class="member-bar-actions">
+      <a class="btn btn-outline" href="index.html" aria-current="page">Profile</a>
+      <a class="btn btn-outline" href="staff.html" id="nav-staff" hidden>Staff</a>
       <button type="button" class="btn btn-primary" id="member-signout-btn">Sign out</button>
     </div>
   </div>
@@ -39,7 +41,7 @@
       <div class="admin-page-head" style="margin-bottom:1.5rem;">
         <div>
           <p class="eyebrow">Member portal</p>
-          <h1 class="section-title" style="margin-bottom:.35rem;">Welcome</h1>
+          <h1 class="section-title" style="margin-bottom:.35rem;" id="member-title">Welcome</h1>
           <p class="muted" id="member-welcome">Your membership overview</p>
         </div>
       </div>
@@ -47,27 +49,118 @@
       <div class="member-grid">
         <section class="member-card" aria-labelledby="profile-heading">
           <h2 id="profile-heading">My profile</h2>
-          <p class="muted" style="margin-top:-0.35rem;margin-bottom:1rem;font-size:.9rem;">Read-only for now. Profile edits will need admin approval (coming later).</p>
           <dl class="member-dl">
             <div><dt>Company</dt><dd id="mp-company">—</dd></div>
             <div><dt>Contact</dt><dd id="mp-contact">—</dd></div>
             <div><dt>Email</dt><dd id="mp-email">—</dd></div>
             <div><dt>Location</dt><dd id="mp-location">—</dd></div>
+            <div><dt>Ports</dt><dd id="mp-ports">—</dd></div>
             <div><dt>Website</dt><dd id="mp-website">—</dd></div>
+            <div class="member-span-2"><dt>Description</dt><dd id="mp-description">—</dd></div>
           </dl>
         </section>
 
         <section class="member-card" aria-labelledby="membership-heading">
           <h2 id="membership-heading">My membership</h2>
           <dl class="member-dl">
+            <div><dt>Your role</dt><dd id="mp-role">—</dd></div>
             <div><dt>Status</dt><dd id="mp-status">—</dd></div>
+            <div><dt>Listed</dt><dd id="mp-listed">—</dd></div>
             <div><dt>Tier</dt><dd id="mp-tier">—</dd></div>
             <div><dt>Renewal</dt><dd id="mp-renewal">—</dd></div>
-            <div><dt>Consent</dt><dd id="mp-consent">—</dd></div>
           </dl>
-          <p class="member-note">Directory listing visibility depends on status and consent. Changes to your public listing will go through admin approval in a later release.</p>
+          <p class="member-note">Directory listing depends on status and consent. Profile edits from an owner go to an admin for approval before they appear publicly.</p>
         </section>
       </div>
+
+      <section class="member-card member-card-wide" id="edit-card" hidden aria-labelledby="edit-heading">
+        <h2 id="edit-heading">Request a profile change</h2>
+        <p class="muted" style="margin-top:-0.35rem;margin-bottom:1rem;font-size:.9rem;">Owners can propose changes. An admin must approve them before the directory updates. Only one request can wait at a time.</p>
+        <div id="edit-alert" class="portal-alert" hidden role="alert"></div>
+        <form id="edit-form" novalidate>
+          <div class="form-grid member-form-grid">
+            <div class="field">
+              <label for="e-company">Company name</label>
+              <input id="e-company" name="company_name" type="text" maxlength="300">
+            </div>
+            <div class="field">
+              <label for="e-contact">Contact person</label>
+              <input id="e-contact" name="contact_person" type="text" maxlength="300">
+            </div>
+            <div class="field">
+              <label for="e-email">Main email</label>
+              <input id="e-email" name="email" type="email" maxlength="300" autocomplete="off">
+            </div>
+            <div class="field">
+              <label for="e-website">Website</label>
+              <input id="e-website" name="website" type="text" maxlength="300">
+            </div>
+            <div class="field">
+              <label for="e-continent">Continent</label>
+              <select id="e-continent" name="continent">
+                <option value="">Select…</option>
+                <option>Africa</option>
+                <option>Asia</option>
+                <option>Central America</option>
+                <option>Europe</option>
+                <option>Middle East</option>
+                <option>North America</option>
+                <option>Oceania</option>
+                <option>South America</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="e-region">Region</label>
+              <input id="e-region" name="region" type="text" maxlength="300">
+            </div>
+            <div class="field">
+              <label for="e-country">Country</label>
+              <input id="e-country" name="country" type="text" maxlength="300">
+            </div>
+            <div class="field">
+              <label for="e-city">City</label>
+              <input id="e-city" name="city" type="text" maxlength="300">
+            </div>
+            <div class="field member-span-2">
+              <label for="e-ports">Ports <span class="field-hint">(comma-separated)</span></label>
+              <input id="e-ports" name="ports" type="text" maxlength="1500">
+            </div>
+            <div class="field member-span-2">
+              <label for="e-description">Description</label>
+              <textarea id="e-description" name="description" rows="4" maxlength="5000"></textarea>
+            </div>
+          </div>
+          <div class="member-form-actions">
+            <button type="submit" class="btn btn-primary" id="edit-submit">Submit for approval</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="member-card member-card-wide" id="requests-card" hidden aria-labelledby="requests-heading">
+        <h2 id="requests-heading">My edit requests</h2>
+        <div id="requests-list"></div>
+        <p class="muted" id="requests-empty" hidden>No edit requests yet.</p>
+      </section>
+
+      <section class="member-card member-card-wide" aria-labelledby="pw-heading">
+        <h2 id="pw-heading">Change password</h2>
+        <div id="pw-alert" class="portal-alert" hidden role="alert"></div>
+        <form id="pw-form" novalidate>
+          <div class="form-grid member-form-grid">
+            <div class="field">
+              <label for="pw-new">New password <span class="req">*</span></label>
+              <input id="pw-new" type="password" autocomplete="new-password" minlength="8" required>
+            </div>
+            <div class="field">
+              <label for="pw-confirm">Confirm password <span class="req">*</span></label>
+              <input id="pw-confirm" type="password" autocomplete="new-password" minlength="8" required>
+            </div>
+          </div>
+          <div class="member-form-actions">
+            <button type="submit" class="btn btn-outline" id="pw-submit">Update password</button>
+          </div>
+        </form>
+      </section>
     </div>
   </div>
 </main>

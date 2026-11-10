@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Staff — Partners Unlimited</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="description" content="Manage staff logins for your Partners Unlimited company.">
+<link rel="icon" type="image/png" href="../assets/img/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/css/style.css">
+<link rel="stylesheet" href="../assets/css/portal.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../assets/js/pu-auth.js" defer></script>
+<script src="assets/staff.js" defer></script>
+</head>
+<body data-pu-root="../" data-pu-page="member-staff" style="background:var(--bg-soft);min-height:100vh;display:flex;flex-direction:column;">
+
+<header class="member-bar">
+  <div class="container member-bar-inner">
+    <a class="member-brand" href="index.html">
+      <img src="../assets/img/logo.png" alt="Partners Unlimited" width="120" height="75">
+      <span>Member</span>
+    </a>
+    <div class="member-bar-actions">
+      <a class="btn btn-outline" href="index.html">Profile</a>
+      <a class="btn btn-outline" href="staff.html" aria-current="page">Staff</a>
+      <button type="button" class="btn btn-primary" id="member-signout-btn">Sign out</button>
+    </div>
+  </div>
+</header>
+
+<main class="member-shell" style="flex:1;">
+  <div class="container">
+    <div id="staff-gate" class="portal-alert is-info" role="status">Checking your account…</div>
+    <div id="staff-alert" class="portal-alert" hidden role="alert"></div>
+
+    <div id="staff-content" hidden>
+      <div class="admin-page-head" style="margin-bottom:1.5rem;">
+        <div>
+          <p class="eyebrow">Member portal</p>
+          <h1 class="section-title" style="margin-bottom:.35rem;">Staff logins</h1>
+          <p class="muted" id="staff-count">Up to 5 staff per company.</p>
+        </div>
+      </div>
+
+      <section class="member-card member-card-wide">
+        <div id="staff-list"></div>
+        <p class="muted" id="staff-empty" hidden>No staff listed yet.</p>
+      </section>
+
+      <section class="member-card member-card-wide" aria-labelledby="add-staff-heading">
+        <h2 id="add-staff-heading">Add staff</h2>
+        <p class="member-note" style="margin-top:0;">Coming once email sending is set up. Invites use the invite-member function, which is not enabled until Rex approves the wording and a sender is configured.</p>
+        <div class="form-grid member-form-grid" style="opacity:.6;">
+          <div class="field">
+            <label for="add-staff-email">Email</label>
+            <input id="add-staff-email" type="email" disabled placeholder="Coming soon">
+          </div>
+        </div>
+        <div class="member-form-actions">
+          <button type="button" class="btn btn-primary" id="add-staff-btn" disabled title="Invites are not enabled yet">Invite staff</button>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+
+<div id="staff-modal" class="admin-modal" hidden>
+  <div class="admin-modal-backdrop" data-modal-close></div>
+  <div class="admin-modal-dialog form-card" role="dialog" aria-modal="true" aria-labelledby="staff-modal-title">
+    <h2 id="staff-modal-title" class="section-title" style="font-size:1.25rem;">Remove this staff login?</h2>
+    <p class="muted" id="staff-modal-body">They will no longer be able to see this company’s member portal. The login is kept as history (not hard-deleted).</p>
+    <div class="admin-modal-actions">
+      <button type="button" class="btn btn-outline" data-modal-close>Cancel</button>
+      <button type="button" class="btn admin-btn-danger" id="staff-modal-confirm">Remove</button>
+    </div>
+  </div>
+</div>
+
+<footer class="member-footer">
+  <div class="container"><p>Partners Unlimited — member portal (staging)</p></div>
+</footer>
+
+</body>
+</html>

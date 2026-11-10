@@ -213,6 +213,15 @@
     $('admin-approve-btn').hidden = false;
     syncApproveButton();
     showAlert($('admin-detail-alert'), '', null);
+    var loginsCard = $('admin-logins-card');
+    if (loginsCard) {
+      if (isNew || !(m && m.id)) {
+        loginsCard.hidden = true;
+      } else {
+        loginsCard.hidden = false;
+        loadMemberLogins(m.id);
+      }
+    }
   }
 
   function showView(name) {
@@ -281,6 +290,8 @@
   }
 
   function backToList(preserveFilters) {
+    var loginsCard = $('admin-logins-card');
+    if (loginsCard) loginsCard.hidden = true;
     showView('list');
     if (history.replaceState) {
       var p = new URLSearchParams();
@@ -539,6 +550,17 @@
     if (params.get('q')) { listFilters.search = params.get('q'); $('f-search').value = listFilters.search; }
     if (params.get('status')) { listFilters.status = params.get('status'); $('f-status').value = listFilters.status; }
 
+    var loginsModal = $('logins-modal');
+    if (loginsModal) {
+      loginsModal.querySelectorAll('[data-modal-close]').forEach(function (el) {
+        el.addEventListener('click', closeLoginsModal);
+      });
+      $('logins-modal-confirm').addEventListener('click', confirmLoginsAction);
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && !loginsModal.hidden) closeLoginsModal();
+      });
+    }
+
     await loadMembers();
     if (params.get('new') === '1') openNew();
     else if (params.get('id')) await openMember(params.get('id'));
@@ -678,6 +700,296 @@
     await loadUsers();
   }
 
+
+  /* ---------- member logins (admin) ---------- */
+  var pendingLoginAction = null;
+
+  async function loadMemberLogins(memberId) {
+    var wrap = $('logins-table-wrap');
+    var empty = $('logins-empty');
+    var tbody = $('logins-table-body');
+    if (!tbody) return;
+    showAlert($('logins-alert'), '', null);
+    var res = await client.rpc(RPC.adminListMemberUsers, { p_member_id: Number(memberId) });
+    if (res.error) {
+      showAlert($('logins-alert'), friendlyError(res.error, 'Could not load logins.'), 'error');
+      if (wrap) wrap.hidden = true;
+      if (empty) empty.hidden = true;
+      return;
+    }
+    var rows = Array.isArray(res.data) ? res.data : [];
+    tbody.innerHTML = '';
+    if (!rows.length) {
+      if (empty) empty.hidden = false;
+      if (wrap) wrap.hidden = true;
+      return;
+    }
+    if (empty) empty.hidden = true;
+    if (wrap) wrap.hidden = false;
+    rows.forEach(function (u) {
+      var tr = document.createElement('tr');
+      tr.innerHTML = '<td class="nm"></td><td class="rl"></td><td class="lk"></td><td class="inv"></td><td class="ac"></td>';
+      tr.querySelector('.nm').textContent = u.full_name || '—';
+      var badge = document.createElement('span');
+      badge.className = 'admin-badge ' + (u.role === 'owner' ? 'is-active' : 'is-pending');
+      badge.textContent = u.role || 'staff';
+      tr.querySelector('.rl').appendChild(badge);
+      tr.querySelector('.lk').textContent = fmtDate(u.linked_at);
+      tr.querySelector('.inv').textContent = u.invite_accepted ? 'Accepted' : 'Pending';
+      var act = tr.querySelector('.ac');
+      var setOwner = document.createElement('button');
+      setOwner.type = 'button';
+      setOwner.className = 'btn btn-outline';
+      setOwner.style.padding = '.4rem .9rem';
+      setOwner.style.fontSize = '.82rem';
+      setOwner.style.marginRight = '.4rem';
+      setOwner.textContent = 'Set owner';
+      setOwner.disabled = u.role === 'owner';
+      setOwner.addEventListener('click', function () {
+        pendingLoginAction = { type: 'owner', memberId: memberId, user: u };
+        $('logins-modal-title').textContent = 'Set as owner?';
+        $('logins-modal-body').textContent = 'This login will become the company owner. The current owner will be unlinked (not kept as staff).';
+        $('logins-modal').hidden = false;
+      });
+      var unlink = document.createElement('button');
+      unlink.type = 'button';
+      unlink.className = 'btn admin-btn-danger';
+      unlink.style.padding = '.4rem .9rem';
+      unlink.style.fontSize = '.82rem';
+      unlink.textContent = 'Unlink';
+      unlink.addEventListener('click', function () {
+        pendingLoginAction = { type: 'unlink', memberId: memberId, user: u };
+        $('logins-modal-title').textContent = 'Unlink this login?';
+        $('logins-modal-body').textContent = 'They will no longer have access to this company. The login is kept as history.';
+        $('logins-modal').hidden = false;
+      });
+      act.appendChild(setOwner);
+      act.appendChild(unlink);
+      tbody.appendChild(tr);
+    });
+  }
+
+  function closeLoginsModal() {
+    pendingLoginAction = null;
+    var m = $('logins-modal');
+    if (m) m.hidden = true;
+  }
+
+  async function confirmLoginsAction() {
+    var action = pendingLoginAction;
+    closeLoginsModal();
+    if (!action) return;
+    var res;
+    if (action.type === 'unlink') {
+      res = await client.rpc(RPC.adminUnlinkUser, {
+        p_member_id: Number(action.memberId),
+        p_user_id: action.user.user_id
+      });
+    } else {
+      res = await client.rpc(RPC.adminSetOwner, {
+        p_member_id: Number(action.memberId),
+        p_user_id: action.user.user_id,
+        p_keep_old_owner_as_staff: false
+      });
+    }
+    if (res.error) {
+      showAlert($('logins-alert'), friendlyError(res.error, 'Could not update this login.'), 'error');
+      return;
+    }
+    showAlert($('logins-alert'), action.type === 'unlink' ? 'Login unlinked.' : 'Owner updated.', 'ok');
+    await loadMemberLogins(action.memberId);
+  }
+
+  /* ---------- pending edits ---------- */
+  var pendingRejectId = null;
+
+  function formatChangeVal(v) {
+    if (v == null || v === '') return '—';
+    if (Array.isArray(v)) return v.join(', ') || '—';
+    return String(v);
+  }
+
+  function renderEditDiff(currentVals, proposed) {
+    var wrap = document.createElement('div');
+    wrap.className = 'edit-diff';
+    var headField = document.createElement('div');
+    headField.className = 'edit-diff-head';
+    headField.textContent = 'Field';
+    var headOld = document.createElement('div');
+    headOld.className = 'edit-diff-head';
+    headOld.textContent = 'Current';
+    var headNew = document.createElement('div');
+    headNew.className = 'edit-diff-head';
+    headNew.textContent = 'Proposed';
+    wrap.appendChild(headField);
+    wrap.appendChild(headOld);
+    wrap.appendChild(headNew);
+    var keys = Object.keys(proposed || {});
+    keys.forEach(function (k) {
+      var oldV = currentVals ? currentVals[k] : undefined;
+      var newV = proposed[k];
+      var f = document.createElement('div');
+      f.textContent = k.replace(/_/g, ' ');
+      var o = document.createElement('div');
+      o.className = 'edit-diff-old';
+      o.textContent = formatChangeVal(oldV);
+      var n = document.createElement('div');
+      n.className = 'edit-diff-new';
+      n.textContent = formatChangeVal(newV);
+      if (formatChangeVal(oldV) !== formatChangeVal(newV)) n.parentNode; // mark below
+      wrap.appendChild(f);
+      wrap.appendChild(o);
+      wrap.appendChild(n);
+      if (formatChangeVal(oldV) !== formatChangeVal(newV)) {
+        f.classList.add('edit-diff-changed');
+        n.classList.add('edit-diff-changed');
+      }
+    });
+    return wrap;
+  }
+
+  function renderEditRequests(rows) {
+    var list = $('edits-list');
+    list.innerHTML = '';
+    $('edits-count').textContent = rows.length
+      ? (rows.length + ' request' + (rows.length === 1 ? '' : 's'))
+      : 'No requests';
+    if (!rows.length) {
+      $('edits-empty').hidden = false;
+      return;
+    }
+    $('edits-empty').hidden = true;
+    rows.forEach(function (r) {
+      var card = document.createElement('article');
+      card.className = 'member-card';
+      card.style.marginBottom = '1rem';
+      var head = document.createElement('div');
+      head.className = 'edit-request-head';
+      var title = document.createElement('h2');
+      title.style.margin = '0';
+      title.style.fontSize = '1.1rem';
+      title.textContent = r.company_name || ('Request #' + r.id);
+      var badge = document.createElement('span');
+      badge.className = 'admin-badge ' + (r.status === 'pending' ? 'is-pending' : r.status === 'approved' ? 'is-active' : 'is-removed');
+      badge.textContent = r.status || '—';
+      head.appendChild(title);
+      head.appendChild(badge);
+      card.appendChild(head);
+      var meta = document.createElement('p');
+      meta.className = 'muted';
+      meta.style.fontSize = '.9rem';
+      meta.textContent = 'Submitted ' + fmtDate(r.created_at);
+      card.appendChild(meta);
+      card.appendChild(renderEditDiff(r.current_values || {}, r.proposed || {}));
+      if (r.reject_reason) {
+        var reason = document.createElement('p');
+        reason.className = 'muted';
+        reason.textContent = 'Reason: ' + r.reject_reason;
+        card.appendChild(reason);
+      }
+      if (r.status === 'pending') {
+        var actions = document.createElement('div');
+        actions.className = 'admin-form-actions-primary';
+        actions.style.marginTop = '.75rem';
+        var approve = document.createElement('button');
+        approve.type = 'button';
+        approve.className = 'btn btn-primary';
+        approve.textContent = 'Approve';
+        approve.addEventListener('click', function () { approveEdit(r.id, approve); });
+        var reject = document.createElement('button');
+        reject.type = 'button';
+        reject.className = 'btn admin-btn-danger';
+        reject.textContent = 'Reject';
+        reject.addEventListener('click', function () { openRejectModal(r.id); });
+        actions.appendChild(approve);
+        actions.appendChild(reject);
+        card.appendChild(actions);
+      }
+      list.appendChild(card);
+    });
+  }
+
+  async function loadEditRequests() {
+    $('edits-loading').hidden = false;
+    $('edits-empty').hidden = true;
+    $('edits-error').hidden = true;
+    $('edits-list').innerHTML = '';
+    var status = $('edits-status') ? $('edits-status').value : 'pending';
+    var args = {};
+    if (status === 'all') args.p_status = null;
+    else args.p_status = status;
+    var res = await client.rpc(RPC.adminListEditRequests, args);
+    $('edits-loading').hidden = true;
+    if (res.error) {
+      $('edits-error').hidden = false;
+      $('edits-error-msg').textContent = friendlyError(res.error, 'Could not load edit requests.');
+      return;
+    }
+    renderEditRequests(Array.isArray(res.data) ? res.data : []);
+  }
+
+  async function approveEdit(id, btn) {
+    if (btn) { btn.disabled = true; btn.textContent = 'Approving…'; }
+    showAlert($('edits-alert'), '', null);
+    var res = await client.rpc(RPC.adminApproveEdit, { p_request_id: Number(id) });
+    if (btn) { btn.disabled = false; btn.textContent = 'Approve'; }
+    if (res.error) {
+      showAlert($('edits-alert'), friendlyError(res.error, 'Could not approve this request.'), 'error');
+      return;
+    }
+    showAlert($('edits-alert'), 'Edit approved and applied.', 'ok');
+    await loadEditRequests();
+  }
+
+  function openRejectModal(id) {
+    pendingRejectId = id;
+    $('edits-reject-reason').value = '';
+    $('edits-reject-modal').hidden = false;
+    $('edits-reject-reason').focus();
+  }
+  function closeRejectModal() {
+    pendingRejectId = null;
+    $('edits-reject-modal').hidden = true;
+  }
+
+  async function confirmReject() {
+    var id = pendingRejectId;
+    var reason = ($('edits-reject-reason').value || '').trim();
+    closeRejectModal();
+    if (!id) return;
+    var res = await client.rpc(RPC.adminRejectEdit, {
+      p_request_id: Number(id),
+      p_reason: reason || null
+    });
+    if (res.error) {
+      showAlert($('edits-alert'), friendlyError(res.error, 'Could not reject this request.'), 'error');
+      return;
+    }
+    showAlert($('edits-alert'), 'Edit rejected.', 'ok');
+    await loadEditRequests();
+  }
+
+  async function initPendingEdits() {
+    var gate = $('admin-gate');
+    if (gate) gate.hidden = false;
+    var auth = await requireAdmin();
+    if (gate) gate.hidden = true;
+    if (!auth) return;
+
+    $('admin-signout-btn').addEventListener('click', signOut);
+    $('edits-retry').addEventListener('click', loadEditRequests);
+    $('edits-status').addEventListener('change', loadEditRequests);
+    $('edits-reject-modal').querySelectorAll('[data-modal-close]').forEach(function (el) {
+      el.addEventListener('click', closeRejectModal);
+    });
+    $('edits-reject-confirm').addEventListener('click', confirmReject);
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !$('edits-reject-modal').hidden) closeRejectModal();
+    });
+    await loadEditRequests();
+  }
+
   if (page === 'members') initMembers();
   else if (page === 'admins') initAdmins();
+  else if (page === 'pending-edits') initPendingEdits();
 })();

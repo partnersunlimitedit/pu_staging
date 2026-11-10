@@ -1,16 +1,18 @@
-/* Member portal home — read-only profile + membership. */
+/* Member portal home — profile, membership, owner edits, change password. */
 (function () {
   'use strict';
   if (!document.body || document.body.getAttribute('data-pu-page') !== 'member-home') return;
   if (!window.PUAuth) return;
 
   var client = PUAuth.createClient();
-  var CFG = PUAuth.CONFIG;
+  var RPC = PUAuth.CONFIG.rpc;
+  var membership = null;
+  var company = null;
 
   function $(id) { return document.getElementById(id); }
 
-  function showAlert(message, kind) {
-    var el = $('member-alert');
+  function showAlert(elOrId, message, kind) {
+    var el = typeof elOrId === 'string' ? $(elOrId) : elOrId;
     if (!el) return;
     el.hidden = !message;
     el.textContent = message || '';
@@ -31,50 +33,36 @@
     if (el) el.textContent = value == null || value === '' ? '—' : String(value);
   }
 
-  /**
-   * Load the signed-in member's row.
-   * Prefers a future RPC (name in PUAuth.CONFIG.rpc.getMyMember when confirmed).
-   * Falls back to selecting members by auth email — may fail until RLS allows it.
-   */
-  async function fetchMyMember(user) {
-    var rpcName = CFG.rpc.getMyMember;
-    if (rpcName) {
-      try {
-        var rpc = await client.rpc(rpcName);
-        if (!rpc.error) return { data: rpc.data, error: null, via: 'rpc' };
-        if (!PUAuth.isMissingDbObject(rpc.error)) {
-          return { data: null, error: rpc.error, via: 'rpc' };
-        }
-      } catch (e) { /* fall through */ }
-    }
-
-    // Fallback: match members.email to the auth user email (no PII logged)
-    var email = user && user.email;
-    if (!email) return { data: null, error: { message: 'No email on account' }, via: 'none' };
-
-    var cols = [
-      'id', 'company_name', 'contact_person', 'email', 'continent', 'region',
-      'country', 'city', 'website', 'status', 'membership_tier', 'renewal_date',
-      'consent_at'
-    ].join(',');
-
-    var q = await client
-      .from(CFG.tables.members)
-      .select(cols)
-      .eq('email', email)
-      .maybeSingle();
-
-    return { data: q.data, error: q.error, via: 'email' };
+  function firstRow(data) {
+    if (!data) return null;
+    if (Array.isArray(data)) return data[0] || null;
+    return data;
   }
 
-  function renderMember(row, user) {
-    setText('mp-company', row && row.company_name);
+  function portsToText(ports) {
+    if (Array.isArray(ports)) return ports.filter(Boolean).join(', ');
+    return ports || '';
+  }
+
+  function textToPorts(text) {
+    return String(text || '').split(',').map(function (p) { return p.trim(); }).filter(Boolean);
+  }
+
+  function val(id) { return ($(id) && $(id).value) || ''; }
+
+  function fillProfile(row, mem) {
+    var companyName = (row && row.company_name) || (mem && mem.company_name) || '';
+    if (companyName) {
+      $('member-title').textContent = companyName;
+      $('member-welcome').textContent = (mem && mem.my_role)
+        ? ('Signed in as ' + mem.my_role)
+        : 'Your membership overview';
+    }
+    setText('mp-company', companyName);
     setText('mp-contact', row && row.contact_person);
-    setText('mp-email', (row && row.email) || (user && user.email) || '—');
-    var loc = row
-      ? [row.city, row.country, row.continent].filter(Boolean).join(', ')
-      : '';
-    setText('mp-location', loc);
+    setText('mp-email', row && row.email);
+    setText('mp-location', row ? [row.city, row.country, row.continent].filter(Boolean).join(', ') : '');
+    setText('mp-ports', row ? portsToText(row.ports) : '');
     var web = $('mp-website');
     if (web) {
       web.textContent = '';
@@ -89,29 +77,212 @@
         web.textContent = '—';
       }
     }
+    setText('mp-description', row && row.description);
 
+    setText('mp-role', mem && mem.my_role);
     var st = $('mp-status');
     if (st) {
       st.textContent = '';
-      if (row && row.status) {
+      var status = (mem && mem.member_status) || (row && row.status);
+      if (status) {
         var badge = document.createElement('span');
-        badge.className = 'member-badge is-' + row.status;
-        badge.textContent = row.status;
+        badge.className = 'member-badge is-' + status;
+        badge.textContent = status;
         st.appendChild(badge);
       } else {
         st.textContent = '—';
       }
     }
-    setText('mp-tier', row && row.membership_tier);
-    setText('mp-renewal', row && row.renewal_date ? fmtDate(row.renewal_date) : '—');
-    setText('mp-consent', row && row.consent_at ? ('Recorded ' + fmtDate(row.consent_at)) : 'Not recorded');
+    var listed = mem && typeof mem.listed_in_directory === 'boolean'
+      ? (mem.listed_in_directory ? 'Yes, in the public directory' : 'Not listed')
+      : '—';
+    setText('mp-listed', listed);
+    setText('mp-tier', (mem && mem.membership_tier) || (row && row.membership_tier));
+    var renewal = (mem && mem.renewal_date) || (row && row.renewal_date);
+    setText('mp-renewal', renewal ? fmtDate(renewal) : '—');
+  }
+
+  function fillEditForm(row) {
+    if (!row) return;
+    $('e-company').value = row.company_name || '';
+    $('e-contact').value = row.contact_person || '';
+    $('e-email').value = row.email || '';
+    $('e-website').value = row.website || '';
+    $('e-continent').value = row.continent || '';
+    $('e-region').value = row.region || '';
+    $('e-country').value = row.country || '';
+    $('e-city').value = row.city || '';
+    $('e-ports').value = portsToText(row.ports);
+    $('e-description').value = row.description || '';
+  }
+
+  function collectChanges() {
+    if (!company) return {};
+    var fields = {
+      company_name: val('e-company').trim(),
+      contact_person: val('e-contact').trim(),
+      email: val('e-email').trim(),
+      website: val('e-website').trim(),
+      continent: val('e-continent'),
+      region: val('e-region').trim(),
+      country: val('e-country').trim(),
+      city: val('e-city').trim(),
+      description: val('e-description').trim()
+    };
+    var changes = {};
+    Object.keys(fields).forEach(function (k) {
+      var oldVal = company[k] == null ? '' : String(company[k]);
+      if (fields[k] !== oldVal) changes[k] = fields[k];
+    });
+    var newPorts = textToPorts(val('e-ports'));
+    var oldPorts = Array.isArray(company.ports) ? company.ports.filter(Boolean) : [];
+    if (newPorts.join('\u0001') !== oldPorts.join('\u0001')) changes.ports = newPorts;
+    return changes;
+  }
+
+  function requestStatusClass(status) {
+    if (status === 'approved') return 'is-active';
+    if (status === 'pending') return 'is-pending';
+    return 'is-removed';
+  }
+
+  function formatChangeVal(v) {
+    if (v == null || v === '') return '—';
+    if (Array.isArray(v)) return v.join(', ') || '—';
+    return String(v);
+  }
+
+  function renderRequests(rows) {
+    var list = $('requests-list');
+    var empty = $('requests-empty');
+    list.innerHTML = '';
+    if (!rows || !rows.length) {
+      empty.hidden = false;
+      return;
+    }
+    empty.hidden = true;
+    rows.forEach(function (r) {
+      var card = document.createElement('article');
+      card.className = 'edit-request';
+      var head = document.createElement('div');
+      head.className = 'edit-request-head';
+      var badge = document.createElement('span');
+      badge.className = 'member-badge ' + requestStatusClass(r.status);
+      badge.textContent = r.status || '—';
+      var when = document.createElement('span');
+      when.className = 'muted';
+      when.textContent = 'Submitted ' + fmtDate(r.created_at);
+      head.appendChild(badge);
+      head.appendChild(when);
+      card.appendChild(head);
+
+      var dl = document.createElement('dl');
+      dl.className = 'member-dl';
+      var proposed = r.proposed || {};
+      Object.keys(proposed).forEach(function (k) {
+        var row = document.createElement('div');
+        var dt = document.createElement('dt');
+        dt.textContent = k.replace(/_/g, ' ');
+        var dd = document.createElement('dd');
+        dd.textContent = formatChangeVal(proposed[k]);
+        row.appendChild(dt);
+        row.appendChild(dd);
+        dl.appendChild(row);
+      });
+      card.appendChild(dl);
+
+      if (r.status === 'rejected' && r.reject_reason) {
+        var reason = document.createElement('p');
+        reason.className = 'member-note';
+        reason.textContent = 'Reason: ' + r.reject_reason;
+        card.appendChild(reason);
+      }
+
+      if (r.status === 'pending') {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn btn-outline';
+        btn.textContent = 'Cancel request';
+        btn.addEventListener('click', function () { cancelEdit(r.id, btn); });
+        card.appendChild(btn);
+      }
+      list.appendChild(card);
+    });
+  }
+
+  async function loadRequests() {
+    var res = await client.rpc(RPC.myEditRequests);
+    if (res.error) {
+      showAlert('edit-alert', PUAuth.friendlyAuthError(res.error, 'Could not load edit requests.'), 'error');
+      return;
+    }
+    renderRequests(Array.isArray(res.data) ? res.data : []);
+  }
+
+  async function cancelEdit(id, btn) {
+    if (btn) { btn.disabled = true; btn.textContent = 'Cancelling…'; }
+    var res = await client.rpc(RPC.ownerCancelEdit, { p_request_id: Number(id) });
+    if (res.error) {
+      showAlert('edit-alert', PUAuth.friendlyAuthError(res.error, 'Could not cancel this request.'), 'error');
+      if (btn) { btn.disabled = false; btn.textContent = 'Cancel request'; }
+      return;
+    }
+    showAlert('edit-alert', 'Request cancelled.', 'ok');
+    await loadRequests();
+  }
+
+  async function submitEdit(ev) {
+    ev.preventDefault();
+    showAlert('edit-alert', '', null);
+    var changes = collectChanges();
+    if (!Object.keys(changes).length) {
+      showAlert('edit-alert', 'No changes to submit.', 'info');
+      return;
+    }
+    var btn = $('edit-submit');
+    btn.disabled = true;
+    btn.textContent = 'Submitting…';
+    var res = await client.rpc(RPC.ownerSubmitEdit, { p_changes: changes });
+    btn.disabled = false;
+    btn.textContent = 'Submit for approval';
+    if (res.error) {
+      showAlert('edit-alert', PUAuth.friendlyAuthError(res.error, 'Could not submit this request.'), 'error');
+      return;
+    }
+    showAlert('edit-alert', 'Request submitted. An admin will review it.', 'ok');
+    await loadRequests();
+  }
+
+  async function changePassword(ev) {
+    ev.preventDefault();
+    showAlert('pw-alert', '', null);
+    var pw = $('pw-new').value || '';
+    var confirm = $('pw-confirm').value || '';
+    if (pw.length < 8) {
+      showAlert('pw-alert', 'Use at least 8 characters for your password.', 'error');
+      return;
+    }
+    if (pw !== confirm) {
+      showAlert('pw-alert', 'The two passwords do not match.', 'error');
+      return;
+    }
+    var btn = $('pw-submit');
+    btn.disabled = true;
+    btn.textContent = 'Updating…';
+    var res = await client.auth.updateUser({ password: pw });
+    btn.disabled = false;
+    btn.textContent = 'Update password';
+    $('pw-new').value = '';
+    $('pw-confirm').value = '';
+    if (res.error) {
+      showAlert('pw-alert', PUAuth.friendlyAuthError(res.error, 'Could not update your password.'), 'error');
+      return;
+    }
+    showAlert('pw-alert', 'Password updated.', 'ok');
   }
 
   async function boot() {
-    var gate = $('member-gate');
-    $('member-signout-btn').addEventListener('click', function () {
-      PUAuth.signOut(client);
-    });
+    $('member-signout-btn').addEventListener('click', function () { PUAuth.signOut(client); });
 
     var session = await PUAuth.getSession(client);
     if (!session) {
@@ -119,43 +290,42 @@
       return;
     }
 
-    // Admins who open /member/ still allowed, but offer no special admin UI here
-    var user = await PUAuth.getUser(client);
-    gate.hidden = true;
+    $('member-gate').hidden = true;
     $('member-content').hidden = false;
 
-    var welcome = 'Signed in';
-    // Do not put the email into the welcome line in screenshots/DOM if avoidable —
-    // show company when we have it; otherwise a generic label.
-    $('member-welcome').textContent = welcome;
-
-    var result = await fetchMyMember(user);
-    if (result.error) {
-      if (PUAuth.isRlsError(result.error) || PUAuth.isMissingDbObject(result.error)) {
-        showAlert(
-          'Your account is signed in, but membership details are not available yet. The database may still be missing member self-read access.',
-          'info'
-        );
-      } else {
-        showAlert(PUAuth.friendlyAuthError(result.error, 'Could not load your membership details.'), 'error');
-      }
-      renderMember(null, user);
+    var memRes = await client.rpc(RPC.myMembership);
+    if (memRes.error) {
+      showAlert('member-alert', PUAuth.friendlyAuthError(memRes.error, 'Could not load your membership.'), 'error');
+      return;
+    }
+    membership = firstRow(memRes.data);
+    if (!membership) {
+      showAlert('member-alert', 'Signed in, but this login is not linked to a company yet. An admin can connect it.', 'info');
+      $('member-welcome').textContent = 'No company linked';
       return;
     }
 
-    if (!result.data) {
-      showAlert(
-        'Signed in, but no membership record is linked to this account yet. An admin can connect your profile.',
-        'info'
-      );
-      renderMember(null, user);
-      return;
+    if (membership.my_role === 'owner') {
+      $('nav-staff').hidden = false;
+      $('edit-card').hidden = false;
+      $('requests-card').hidden = false;
     }
 
-    if (result.data.company_name) {
-      $('member-welcome').textContent = result.data.company_name;
+    var coRes = await client.rpc(RPC.myCompany);
+    if (coRes.error) {
+      showAlert('member-alert', PUAuth.friendlyAuthError(coRes.error, 'Could not load your company profile.'), 'error');
+      fillProfile(null, membership);
+      return;
     }
-    renderMember(result.data, user);
+    company = firstRow(coRes.data);
+    fillProfile(company, membership);
+    if (membership.my_role === 'owner' && company) {
+      fillEditForm(company);
+      $('edit-form').addEventListener('submit', submitEdit);
+      await loadRequests();
+    }
+
+    $('pw-form').addEventListener('submit', changePassword);
   }
 
   boot();
