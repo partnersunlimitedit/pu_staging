@@ -1,0 +1,73 @@
+{
+  "mode": "fallback",
+  "ok": true,
+  "errors": [],
+  "results": [
+    {
+      "screenshot": "meetings-live-fallback-desktop.png",
+      "next": "To be announced",
+      "entries": [
+        {
+          "year": "2026",
+          "status": "tba",
+          "location": "",
+          "dates": "",
+          "title": "AGM 2026",
+          "badge": "",
+          "text": "AGM 2026 Details to be announced"
+        },
+        {
+          "year": "2025",
+          "status": "tba",
+          "location": "",
+          "dates": "",
+          "title": "AGM 2025",
+          "badge": "",
+          "text": "AGM 2025 Details to be announced"
+        },
+        {
+          "year": "2024",
+          "status": "past",
+          "location": "Barcelona, Spain",
+          "dates": "4 – 8 March, 2024",
+          "title": "AGM 2024",
+          "badge": "Past meeting",
+          "text": "AGM 2024 PAST MEETING Venue: Barcelona, Spain Date: 4 – 8 March, 2024"
+        }
+      ]
+    },
+    {
+      "screenshot": "meetings-live-fallback-mobile.png",
+      "next": "To be announced",
+      "entries": [
+        {
+          "year": "2026",
+          "status": "tba",
+          "location": "",
+          "dates": "",
+          "title": "AGM 2026",
+          "badge": "",
+          "text": "AGM 2026 Details to be announced"
+        },
+        {
+          "year": "2025",
+          "status": "tba",
+          "location": "",
+          "dates": "",
+          "title": "AGM 2025",
+          "badge": "",
+          "text": "AGM 2025 Details to be announced"
+        },
+        {
+          "year": "2024",
+          "status": "past",
+          "location": "Barcelona, Spain",
+          "dates": "4 – 8 March, 2024",
+          "title": "AGM 2024",
+          "badge": "Past meeting",
+          "text": "AGM 2024 PAST MEETING Venue: Barcelona, Spain Date: 4 – 8 March, 2024"
+        }
+      ]
+    }
+  ]
+}

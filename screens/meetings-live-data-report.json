@@ -1,0 +1,37 @@
+{
+  "mode": "data",
+  "ok": true,
+  "errors": [],
+  "results": [
+    {
+      "screenshot": "meetings-live-data-desktop.png",
+      "next": "TEST AGM – PU Admin, Test location, 1 – 5 March, 2027",
+      "entries": [
+        {
+          "year": "2027",
+          "status": "next",
+          "location": "Test location",
+          "dates": "1 – 5 March, 2027",
+          "title": "TEST AGM – PU Admin",
+          "badge": "Next meeting",
+          "text": "TEST AGM – PU Admin NEXT MEETING Venue: Test location Date: 1 – 5 March, 2027 Test row created by PU Admin. Leave unpublished."
+        }
+      ]
+    },
+    {
+      "screenshot": "meetings-live-data-mobile.png",
+      "next": "TEST AGM – PU Admin, Test location, 1 – 5 March, 2027",
+      "entries": [
+        {
+          "year": "2027",
+          "status": "next",
+          "location": "Test location",
+          "dates": "1 – 5 March, 2027",
+          "title": "TEST AGM – PU Admin",
+          "badge": "Next meeting",
+          "text": "TEST AGM – PU Admin NEXT MEETING Venue: Test location Date: 1 – 5 March, 2027 Test row created by PU Admin. Leave unpublished."
+        }
+      ]
+    }
+  ]
+}
