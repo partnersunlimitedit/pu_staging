@@ -17,7 +17,6 @@
       adminGetMember: 'admin_get_member',
       adminInsertMember: 'admin_insert_member',
       adminUpdateMember: 'admin_update_member',
-      adminSetConsent: 'admin_set_consent',
       adminHideMember: 'admin_hide_member',
       adminRemoveMember: 'admin_remove_member',
       // Admin users / roles
@@ -122,7 +121,7 @@
       return 'You are not authorized to do that.';
     }
     if (code === '23514') {
-      return 'Consent is required before a member can be active. Tick “Member has agreed to be listed”, or use Approve (which records consent).';
+      return 'That value is not valid. Check the fields and try again.';
     }
     if (code === '22023') {
       return 'That value is not valid. Check the fields (for example name, email, location or status) and try again.';

@@ -226,13 +226,6 @@
               </select>
             </div>
             <div class="field admin-span-2">
-              <label class="admin-check">
-                <input type="checkbox" id="m-consent" name="consent">
-                <span>Member has agreed to be listed</span>
-              </label>
-              <p class="field-note muted" id="m-consent-note">Sets consent_at when checked. Approve requires consent.</p>
-            </div>
-            <div class="field admin-span-2">
               <label for="m-notes">Notes</label>
               <textarea id="m-notes" name="notes" rows="3" maxlength="4000"></textarea>
             </div>
@@ -250,7 +243,7 @@
         <div class="admin-form-actions">
           <div class="admin-form-actions-primary">
             <button type="submit" class="btn btn-primary" id="admin-save-btn">Save</button>
-            <button type="button" class="btn btn-outline" id="admin-approve-btn" disabled title="Consent required before approve">Approve</button>
+            <button type="button" class="btn btn-outline" id="admin-approve-btn" title="Set status to active">Approve</button>
           </div>
           <div class="admin-form-actions-secondary">
             <button type="button" class="btn btn-outline" id="admin-hide-btn">Hide</button>
