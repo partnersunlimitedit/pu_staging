@@ -52,7 +52,8 @@
       memberStaff: 'member/staff.html',
       adminMembers: 'admin/members.html',
       admins: 'admin/admins.html',
-      pendingEdits: 'admin/pending-edits.html'
+      pendingEdits: 'admin/pending-edits.html',
+      adminAgm: 'admin/agm.html'
     }
   };
 
