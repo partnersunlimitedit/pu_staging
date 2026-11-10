@@ -76,7 +76,7 @@
   gap: .6rem;
   flex-wrap: wrap;
 }
-.member-bar-actions .btn { padding: .55rem 1.1rem; font-size: .88rem; }
+.member-bar-actions .btn { padding: .55rem 1.1rem; font-size: .88rem; white-space: nowrap; }
 
 .member-grid {
   display: grid;
@@ -120,6 +120,7 @@
   font-size: .9rem;
   color: var(--muted);
 }
+.member-dir-cta { margin-top: 1.15rem; margin-bottom: 0; }
 .member-badge {
   display: inline-flex;
   align-items: center;
@@ -145,7 +146,7 @@
   .member-grid { grid-template-columns: 1fr; }
   .member-dl div { grid-template-columns: 1fr; gap: .2rem; }
   .member-bar-actions { width: 100%; }
-  .member-bar-actions .btn { flex: 1; }
+  .member-bar-actions .btn { flex: 1 1 calc(50% - .6rem); }
 }
 
 .portal-text-btn {
