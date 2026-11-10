@@ -91,12 +91,6 @@
     --pu-shadow-lg: 0 24px 60px -20px rgba(0, 0, 0, .6);
   }
 
-  /* Official wordmark is black; sit the logo on a light plate in dark mode. */
-  .site-logo {
-    background: #fff;
-    border-radius: var(--pu-radius-sm);
-    padding: 4px 8px;
-  }
 }
 
 /* ---------- Reset / base ---------- */
@@ -308,10 +302,24 @@ main:focus { outline: none; }
   display: flex;
   align-items: center;
   flex-shrink: 0;
+  line-height: 0;
+}
+.site-logo picture {
+  display: flex;
+  align-items: center;
 }
 .site-logo img {
-  width: 120px;
-  height: auto;
+  width: auto;
+  object-fit: contain;
+  display: block;
+}
+.site-header .site-logo img {
+  height: 44px;
+  max-height: 44px;
+}
+.footer-brand .site-logo img {
+  height: 48px;
+  max-height: 48px;
 }
 .site-logo:hover { opacity: .85; }
 
@@ -859,8 +867,8 @@ main:focus { outline: none; }
   .footer-grid { grid-template-columns: 1fr; gap: var(--pu-space-4); }
   .teaser { padding: var(--pu-space-3); }
   .header-inner { gap: 12px; }
-}
-
-@media (max-width: 379px) {
-  .site-logo img { width: 108px; }
+  .site-header .site-logo img {
+    height: 40px;
+    max-height: 40px;
+  }
 }
