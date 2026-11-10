@@ -158,10 +158,6 @@
               <input id="m-company" name="company_name" type="text" required maxlength="200">
             </div>
             <div class="field">
-              <label for="m-contact">Contact person</label>
-              <input id="m-contact" name="contact_person" type="text" maxlength="200">
-            </div>
-            <div class="field">
               <label for="m-continent">Continent <span class="req">*</span></label>
               <select id="m-continent" name="continent" required>
                 <option value="">Select…</option>
@@ -203,12 +199,23 @@
         </fieldset>
 
         <fieldset>
-          <legend>Private (admin only)</legend>
+          <legend>Directory contact details</legend>
+          <p class="field-note muted" style="margin-top:0;margin-bottom:1rem;">Signed-in members and admins can see contact person and email on the member directory. Visitors who are not signed in cannot.</p>
           <div class="form-grid admin-form-grid">
+            <div class="field">
+              <label for="m-contact">Contact person</label>
+              <input id="m-contact" name="contact_person" type="text" maxlength="200">
+            </div>
             <div class="field">
               <label for="m-email">Email</label>
               <input id="m-email" name="email" type="email" maxlength="200" autocomplete="off">
             </div>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Admin only</legend>
+          <div class="form-grid admin-form-grid">
             <div class="field">
               <label for="m-tier">Membership tier</label>
               <input id="m-tier" name="membership_tier" type="text" maxlength="80">
