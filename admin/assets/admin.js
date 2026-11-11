@@ -1076,6 +1076,21 @@
       });
     }
 
+    if ($('logins-invite-btn')) {
+      $('logins-invite-btn').addEventListener('click', openInviteLoginModal);
+    }
+    var inviteLoginModal = $('logins-invite-modal');
+    if (inviteLoginModal) {
+      inviteLoginModal.querySelectorAll('[data-invite-login-close]').forEach(function (el) {
+        el.addEventListener('click', closeInviteLoginModal);
+      });
+      $('logins-invite-form').addEventListener('submit', submitInviteLoginForm);
+      $('logins-invite-role').addEventListener('change', onInviteRoleChange);
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && !inviteLoginModal.hidden) closeInviteLoginModal();
+      });
+    }
+
     await loadMembers();
     if (params.get('new') === '1') openNew();
     else if (params.get('id')) await openMember(params.get('id'));
@@ -1555,6 +1570,10 @@
     var action = pendingLoginAction;
     closeLoginsModal();
     if (!action) return;
+    if (action.type === 'invite') {
+      await sendLoginInvite(action);
+      return;
+    }
     var res;
     if (action.type === 'unlink') {
       res = await client.rpc(RPC.adminUnlinkUser, {
@@ -1573,6 +1592,120 @@
       return;
     }
     showAlert($('logins-alert'), action.type === 'unlink' ? 'Login unlinked.' : 'Owner updated.', 'ok');
+    await loadMemberLogins(action.memberId);
+  }
+
+  function companyMainEmail() {
+    if (currentMember && currentMember.email) return String(currentMember.email).trim();
+    return '';
+  }
+
+  function inviteCompanyName() {
+    if (currentMember && currentMember.company_name) return String(currentMember.company_name).trim();
+    var el = $('m-company');
+    return (el && (el.value || '').trim()) || 'this company';
+  }
+
+  function currentOpenMemberId() {
+    if (currentMember && currentMember.id != null) return currentMember.id;
+    var el = $('m-id');
+    var v = el && (el.value || '').trim();
+    return v || null;
+  }
+
+  function isValidInviteEmail(email) {
+    return !!email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  }
+
+  function updateInviteEmailHint() {
+    var hint = $('logins-invite-email-hint');
+    if (!hint) return;
+    var role = ($('logins-invite-role') && $('logins-invite-role').value) || 'owner';
+    hint.textContent = role === 'owner'
+      ? "You can use the company's main email, or enter a different address."
+      : 'Enter the email address to invite as staff.';
+  }
+
+  function onInviteRoleChange() {
+    updateInviteEmailHint();
+    var input = $('logins-invite-email');
+    if (!input) return;
+    if (($('logins-invite-role').value || '') === 'owner' && !(input.value || '').trim()) {
+      input.value = companyMainEmail();
+    }
+  }
+
+  function closeInviteLoginModal() {
+    var m = $('logins-invite-modal');
+    if (m) m.hidden = true;
+    setBusy($('logins-invite-continue'), false, 'Continue');
+  }
+
+  function openInviteLoginModal() {
+    var id = currentOpenMemberId();
+    if (!id) return;
+    showAlert($('logins-invite-form-alert'), '', null);
+    $('logins-invite-role').value = 'owner';
+    $('logins-invite-email').value = companyMainEmail();
+    updateInviteEmailHint();
+    $('logins-invite-modal').hidden = false;
+    $('logins-invite-email').focus();
+  }
+
+  function submitInviteLoginForm(e) {
+    e.preventDefault();
+    var role = ($('logins-invite-role').value || '').trim();
+    var email = ($('logins-invite-email').value || '').trim();
+    var memberId = currentOpenMemberId();
+    if (role !== 'owner' && role !== 'staff') {
+      showAlert($('logins-invite-form-alert'), 'Choose owner or staff.', 'error');
+      return;
+    }
+    if (!isValidInviteEmail(email)) {
+      showAlert($('logins-invite-form-alert'), 'Enter a valid email address.', 'error');
+      return;
+    }
+    if (!memberId) {
+      showAlert($('logins-invite-form-alert'), 'Open a company first.', 'error');
+      return;
+    }
+    var company = inviteCompanyName();
+    closeInviteLoginModal();
+    pendingLoginAction = {
+      type: 'invite',
+      memberId: memberId,
+      role: role,
+      email: email,
+      company: company
+    };
+    $('logins-modal-title').textContent = 'Send invite?';
+    var article = role === 'owner' ? 'an' : 'a';
+    $('logins-modal-body').textContent = 'Send ' + article + ' ' + role + ' invite to ' + email + ' for ' + company + '?';
+    $('logins-modal').hidden = false;
+  }
+
+  async function sendLoginInvite(action) {
+    showAlert($('logins-alert'), '', null);
+    var res = await PUAuth.invokeFunction(client, PUAuth.CONFIG.functions.inviteMember, {
+      role: action.role,
+      email: action.email,
+      member_id: Number(action.memberId)
+    });
+    if (res.error) {
+      showAlert($('logins-alert'), friendlyError(res.error, 'Could not send this invite.'), 'error');
+      return;
+    }
+    var data = res.data || {};
+    if (data.ok === false) {
+      showAlert($('logins-alert'), friendlyError({
+        code: data.code,
+        message: data.message
+      }, 'Could not send this invite.'), 'error');
+      return;
+    }
+    var sentTo = data.email || action.email;
+    var sentRole = data.role || action.role;
+    showAlert($('logins-alert'), 'Invite sent to ' + sentTo + ' as ' + sentRole + '.', 'ok');
     await loadMemberLogins(action.memberId);
   }
 

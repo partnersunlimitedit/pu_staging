@@ -47,6 +47,7 @@
     },
     functions: {
       inviteAdmin: 'invite-admin',
+      inviteMember: 'invite-member',
       removeAdmin: 'remove-admin'
     },
     tables: {
@@ -181,6 +182,9 @@
         return 'That login is not an admin.';
       }
       return 'That change is not allowed in the current state. The company may be removed, already have an owner, or this would remove the company owner or the last admin.';
+    }
+    if (code === 'email_exists') {
+      return 'This email already has a login, so a new invite was not sent.';
     }
     if (code === 'invite_failed') {
       return 'The invite could not be sent. Please try again.';
