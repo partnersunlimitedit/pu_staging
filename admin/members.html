@@ -97,6 +97,26 @@
             <option value="removed">Removed</option>
           </select>
         </div>
+        <div class="field">
+          <label for="f-expiry">Expiry</label>
+          <select id="f-expiry">
+            <option value="all">All</option>
+            <option value="missing">Missing expiry</option>
+            <option value="expired">Expired</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="f-expire-before">Expire on or before</label>
+          <input id="f-expire-before" type="date">
+        </div>
+        <div class="field">
+          <label for="f-sort">Sort</label>
+          <select id="f-sort">
+            <option value="id">Default (id)</option>
+            <option value="renewal_date_asc">Expiry soonest first</option>
+            <option value="renewal_date_desc">Expiry latest first</option>
+          </select>
+        </div>
         <div class="admin-filters-actions">
           <button type="button" class="btn btn-outline" id="f-reset" disabled>Reset</button>
         </div>
@@ -108,7 +128,7 @@
       </div>
       <div id="admin-list-empty" class="admin-state admin-state-msg" hidden>
         <p class="dir-state-title">No members match</p>
-        <p class="muted">Try clearing the search or status filter.</p>
+        <p class="muted">Try clearing the search, status, or expiry filters.</p>
         <button type="button" class="btn btn-outline" id="admin-empty-reset">Reset filters</button>
       </div>
       <div id="admin-list-error" class="admin-state admin-state-msg" hidden role="alert">
@@ -126,7 +146,7 @@
               <th scope="col">Location</th>
               <th scope="col">Status</th>
               <th scope="col">Tier</th>
-              <th scope="col">Renewal</th>
+              <th scope="col">Expiry date</th>
               <th scope="col">Updated</th>
             </tr>
           </thead>
@@ -266,8 +286,39 @@
               <input id="m-tier" name="membership_tier" type="text" maxlength="80">
             </div>
             <div class="field">
-              <label for="m-renewal">Renewal date</label>
+              <label for="m-renewal">Expiry date</label>
               <input id="m-renewal" name="renewal_date" type="date">
+              <p class="field-note muted" id="m-expiry-days">No expiry set</p>
+            </div>
+            <div class="field">
+              <label for="m-term">Membership term</label>
+              <select id="m-term" name="membership_term_years">
+                <option value="">Not set</option>
+                <option value="1">1 year</option>
+                <option value="2">2 years</option>
+                <option value="3">3 years</option>
+                <option value="4">4 years</option>
+                <option value="5">5 years</option>
+              </select>
+              <p class="field-note muted">Optional. On a new member, picking a term without a date lets the server set expiry from today. Saving a date alone does not change the stored term. A passed expiry does not change status or remove the company from the public directory.</p>
+            </div>
+            <div class="field admin-span-2" id="admin-expiry-actions" hidden>
+              <p class="admin-form-subhead" style="margin-top:0;">Renew or clear</p>
+              <div class="admin-expiry-actions">
+                <div class="field">
+                  <label for="m-renew-term">Renew for</label>
+                  <select id="m-renew-term">
+                    <option value="1">1 year</option>
+                    <option value="2">2 years</option>
+                    <option value="3">3 years</option>
+                    <option value="4">4 years</option>
+                    <option value="5">5 years</option>
+                  </select>
+                </div>
+                <button type="button" class="btn btn-outline" id="admin-renew-btn">Renew membership</button>
+                <button type="button" class="btn btn-outline" id="admin-clear-expiry-btn">Clear expiry</button>
+              </div>
+              <p class="field-note muted">Renew calculates the new expiry on the server: it extends the current expiry if that date is still valid, or starts from today if the membership has expired or has no date. Status is not changed. Clear expiry removes both the date and the term.</p>
             </div>
             <div class="field">
               <label for="m-status">Status</label>
@@ -341,6 +392,18 @@
     <div class="admin-modal-actions">
       <button type="button" class="btn btn-outline" data-modal-close>Cancel</button>
       <button type="button" class="btn admin-btn-danger" id="admin-modal-confirm">Remove</button>
+    </div>
+  </div>
+</div>
+
+<div id="admin-expiry-modal" class="admin-modal" hidden>
+  <div class="admin-modal-backdrop" data-modal-close></div>
+  <div class="admin-modal-dialog form-card" role="dialog" aria-modal="true" aria-labelledby="admin-expiry-modal-title">
+    <h2 id="admin-expiry-modal-title" class="section-title" style="font-size:1.25rem;">Confirm</h2>
+    <p class="muted" id="admin-expiry-modal-body"></p>
+    <div class="admin-modal-actions">
+      <button type="button" class="btn btn-outline" data-modal-close>Cancel</button>
+      <button type="button" class="btn btn-primary" id="admin-expiry-modal-confirm">Confirm</button>
     </div>
   </div>
 </div>

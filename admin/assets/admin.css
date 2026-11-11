@@ -157,7 +157,7 @@
 /* ---- Filters ---- */
 .admin-filters {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(14rem, 2fr) repeat(4, minmax(12rem, 1fr)) auto;
   gap: 1.25rem;
   align-items: end;
   margin-bottom: 1.5rem;
@@ -169,6 +169,7 @@
 }
 .admin-filters select,
 .admin-filters input[type="search"],
+.admin-filters input[type="date"],
 .admin-form select,
 .admin-form input[type="date"],
 .admin-form input[type="url"],
@@ -438,6 +439,30 @@
   .admin-modal-actions .btn-outline { order: 0; }
 }
 
+.admin-table .ren,
+.admin-table th:nth-child(5) {
+  white-space: nowrap;
+  min-width: 11rem;
+}
+.admin-expiry-date { font-weight: 600; color: var(--ink); white-space: nowrap; }
+.admin-expiry-meta {
+  display: block;
+  margin-top: .15rem;
+  font-size: .82rem;
+  color: var(--muted);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.admin-expiry-meta.is-expired { color: #b91c1c; }
+.admin-expiry-meta.is-today { color: #c2410c; }
+.admin-expiry-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .75rem 1rem;
+  align-items: end;
+}
+.admin-expiry-actions .field { margin: 0; min-width: 10rem; }
+
 /* ---- Responsive ---- */
 @media (max-width: 900px) {
   .admin-table-wrap { display: none; }
@@ -445,8 +470,13 @@
   .admin-cards:not([hidden]) { display: grid; }
 }
 
+@media (max-width: 1400px) {
+  .admin-filters { grid-template-columns: minmax(14rem, 2fr) repeat(2, minmax(12rem, 1fr)); }
+  .admin-filters-actions { grid-column: auto; }
+}
 @media (max-width: 720px) {
   .admin-filters { grid-template-columns: 1fr; }
+  .admin-filters-actions { grid-column: auto; }
   .admin-filters-actions .btn { width: 100%; }
   .admin-form-grid { grid-template-columns: 1fr; }
   .admin-span-2 { grid-column: auto; }

@@ -41,6 +41,61 @@
     return s.length >= 10 ? s.slice(0, 10) : '';
   }
 
+  var MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  /* Hong Kong calendar date (YYYY-MM-DD). Do not use UTC or the browser's local zone. */
+  function hkToday() {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Hong_Kong',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(new Date());
+  }
+
+  function daysUntilRenewal(renewalDate) {
+    if (!renewalDate) return null;
+    var day = String(renewalDate).slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;
+    var today = hkToday();
+    var a = Date.parse(day + 'T00:00:00Z');
+    var b = Date.parse(today + 'T00:00:00Z');
+    if (isNaN(a) || isNaN(b)) return null;
+    return Math.round((a - b) / 86400000);
+  }
+
+  function formatDaysLeft(days) {
+    if (days == null) return 'No expiry set';
+    if (days === 0) return 'Expires today';
+    if (days === 1) return '1 day left';
+    if (days > 0) return days + ' days left';
+    var ago = -days;
+    if (ago === 1) return 'Expired (1 day ago)';
+    return 'Expired (' + ago + ' days ago)';
+  }
+
+  function daysLeftClass(days) {
+    if (days == null) return '';
+    if (days < 0) return 'is-expired';
+    if (days === 0) return 'is-today';
+    return '';
+  }
+
+  function fmtDateOnly(iso) {
+    if (!iso) return '—';
+    var s = String(iso).slice(0, 10);
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+    if (!m) return fmtDate(iso);
+    return String(Number(m[3])) + ' ' + MONTHS_SHORT[Number(m[2]) - 1] + ' ' + m[1];
+  }
+
+  function termLabel(years) {
+    if (years == null || years === '') return '';
+    var n = Number(years);
+    if (!n) return '';
+    return n === 1 ? '1 year' : (n + ' years');
+  }
+
   function portsToText(ports) {
     if (Array.isArray(ports)) return ports.filter(Boolean).join(', ');
     if (typeof ports === 'string') return ports;
@@ -175,9 +230,6 @@
     var idx = membersCache.findIndex(function (r) { return String(r.id) === String(row.id); });
     if (idx >= 0) membersCache[idx] = row;
     else membersCache.push(row);
-    membersCache.sort(function (a, b) {
-      return String(a.company_name || '').localeCompare(String(b.company_name || ''));
-    });
   }
 
   /* ---------- auth ---------- */
@@ -200,9 +252,43 @@
   function signOut() { return PUAuth.signOut(client); }
 
   /* ---------- member RPCs (single place for admin data access) ---------- */
+  function listRpcOpts() {
+    var opts = {};
+    if (listFilters.expiry === 'missing') opts.p_missing_renewal_only = true;
+    else if (listFilters.expiry === 'expired') opts.p_expired_only = true;
+    if (listFilters.expireBefore && listFilters.expiry !== 'missing') {
+      opts.p_renewal_on_or_before = listFilters.expireBefore;
+    }
+    if (listFilters.order && listFilters.order !== 'id') opts.p_order = listFilters.order;
+    return opts;
+  }
+
   async function fetchMembersForAdmin() {
-    // TODO was: direct from('members') — private cols need RPCs. Do not use from() here.
-    return client.rpc(RPC.adminListMembers);
+    return PUAuth.adminListMembers(client, listRpcOpts());
+  }
+
+  function syncExpiryFilterUi() {
+    var before = $('f-expire-before');
+    if (!before) return;
+    var missing = listFilters.expiry === 'missing';
+    before.disabled = missing;
+    before.title = missing
+      ? 'Date range does not apply when listing members with no expiry.'
+      : '';
+  }
+
+  function resetListFilters() {
+    listFilters.search = '';
+    listFilters.status = '';
+    listFilters.expiry = 'all';
+    listFilters.expireBefore = '';
+    listFilters.order = 'id';
+    if ($('f-search')) $('f-search').value = '';
+    if ($('f-status')) $('f-status').value = '';
+    if ($('f-expiry')) $('f-expiry').value = 'all';
+    if ($('f-expire-before')) $('f-expire-before').value = '';
+    if ($('f-sort')) $('f-sort').value = 'id';
+    syncExpiryFilterUi();
   }
 
   async function fetchMemberById(id) {
@@ -227,9 +313,28 @@
       p_membership_tier: form.membership_tier == null ? '' : form.membership_tier,
       p_notes: form.notes == null ? '' : form.notes
     };
-    if (form.renewal_date) args.p_renewal_date = form.renewal_date;
-    else if (opts.includeNullRenewal) args.p_renewal_date = null;
     return args;
+  }
+
+  /* Insert: omit date/term when blank (server leaves both null; term-only computes today+N).
+     Update: omit blanks (NULL = leave unchanged). Setting a date alone must not send term. */
+  function applyExpiryArgs(args, form, mode) {
+    var date = form.renewal_date || '';
+    var term = form.membership_term_years || '';
+    var skippedBlankDate = false;
+    if (mode === 'insert') {
+      if (date) args.p_renewal_date = date;
+      if (term) args.p_membership_term_years = Number(term);
+      return { skippedBlankDate: false };
+    }
+    var prevDate = toDateInput(currentMember && currentMember.renewal_date);
+    var prevTerm = (currentMember && currentMember.membership_term_years != null)
+      ? String(currentMember.membership_term_years)
+      : '';
+    if (date && date !== prevDate) args.p_renewal_date = date;
+    else if (!date && prevDate) skippedBlankDate = true;
+    if (term && term !== prevTerm) args.p_membership_term_years = Number(term);
+    return { skippedBlankDate: skippedBlankDate };
   }
 
   function readForm() {
@@ -244,10 +349,26 @@
       website: ($('m-website').value || '').trim(),
       description: ($('m-description').value || '').trim(),
       membership_tier: ($('m-tier').value || '').trim(),
-      renewal_date: $('m-renewal').value || '',
+      renewal_date: $('m-renewal') ? ($('m-renewal').value || '') : '',
+      membership_term_years: $('m-term') ? ($('m-term').value || '') : '',
       status: $('m-status').value || 'pending',
       notes: ($('m-notes').value || '').trim()
     };
+  }
+
+  function updateExpiryHint() {
+    var el = $('m-expiry-days');
+    if (!el) return;
+    var date = $('m-renewal') && $('m-renewal').value;
+    if (!date) {
+      el.textContent = 'No expiry set';
+      el.className = 'field-note muted';
+      return;
+    }
+    var days = daysUntilRenewal(date);
+    var cls = daysLeftClass(days);
+    el.textContent = formatDaysLeft(days) + ' (from ' + fmtDateOnly(date) + ', Hong Kong date)';
+    el.className = 'field-note admin-expiry-meta' + (cls ? ' ' + cls : '');
   }
 
   var emailsLoadSeq = 0;
@@ -281,7 +402,8 @@
   /* ---------- MEMBERS PAGE ---------- */
   var membersCache = [];
   var currentMember = null;
-  var listFilters = { search: '', status: '' };
+  var listFilters = { search: '', status: '', expiry: 'all', expireBefore: '', order: 'id' };
+  var pendingExpiryAction = null;
 
   function syncApproveButton() {
     var approve = $('admin-approve-btn');
@@ -308,7 +430,17 @@
     $('m-website').value = (m && m.website) || '';
     $('m-description').value = (m && m.description) || '';
     $('m-tier').value = (m && m.membership_tier) || '';
-    $('m-renewal').value = toDateInput(m && m.renewal_date);
+    if ($('m-renewal')) $('m-renewal').value = toDateInput(m && m.renewal_date);
+    if ($('m-term')) {
+      $('m-term').value = (m && m.membership_term_years != null) ? String(m.membership_term_years) : '';
+    }
+    if ($('m-renew-term')) {
+      var existingTerm = m && Number(m.membership_term_years);
+      $('m-renew-term').value = (existingTerm >= 1 && existingTerm <= 5) ? String(existingTerm) : '1';
+    }
+    updateExpiryHint();
+    var expiryActions = $('admin-expiry-actions');
+    if (expiryActions) expiryActions.hidden = !!isNew;
     $('m-status').value = (m && m.status) || 'pending';
     $('m-notes').value = (m && m.notes) || '';
     BOOKLET_FIELDS.forEach(function (key) {
@@ -434,10 +566,40 @@
       if (preserveFilters !== false) {
         if (listFilters.search) p.set('q', listFilters.search);
         if (listFilters.status) p.set('status', listFilters.status);
+        if (listFilters.expiry && listFilters.expiry !== 'all') p.set('expiry', listFilters.expiry);
+        if (listFilters.expireBefore) p.set('before', listFilters.expireBefore);
+        if (listFilters.order && listFilters.order !== 'id') p.set('sort', listFilters.order);
       }
       var qs = p.toString();
       history.replaceState(null, '', 'members.html' + (qs ? '?' + qs : ''));
     }
+  }
+
+  function fillExpiryCell(el, m) {
+    if (!el) return;
+    el.textContent = '';
+    var date = m && m.renewal_date;
+    if (!date) {
+      var none = document.createElement('span');
+      none.className = 'admin-expiry-meta';
+      none.textContent = 'No expiry set';
+      el.appendChild(none);
+      return;
+    }
+    var d = document.createElement('span');
+    d.className = 'admin-expiry-date';
+    d.textContent = fmtDateOnly(date);
+    el.appendChild(d);
+    var days = daysUntilRenewal(date);
+    var meta = document.createElement('span');
+    var cls = daysLeftClass(days);
+    meta.className = 'admin-expiry-meta' + (cls ? ' ' + cls : '');
+    var parts = [];
+    var term = termLabel(m.membership_term_years);
+    if (term) parts.push(term);
+    parts.push(formatDaysLeft(days));
+    meta.textContent = parts.join(' · ');
+    el.appendChild(meta);
   }
 
   function renderList() {
@@ -447,8 +609,11 @@
     tbody.innerHTML = '';
     cards.innerHTML = '';
 
-    var anyFilter = !!(listFilters.search || listFilters.status);
-    $('f-reset').disabled = !anyFilter;
+    var anyFilter = !!(listFilters.search || listFilters.status ||
+      (listFilters.expiry && listFilters.expiry !== 'all') ||
+      listFilters.expireBefore ||
+      (listFilters.order && listFilters.order !== 'id'));
+    if ($('f-reset')) $('f-reset').disabled = !anyFilter;
     $('admin-count').textContent = membersCache.length
       ? ('Showing ' + rows.length + ' of ' + membersCache.length + ' member' + (membersCache.length === 1 ? '' : 's'))
       : 'No members loaded';
@@ -467,7 +632,7 @@
       tr.querySelector('.loc').textContent = [m.city, m.country].filter(Boolean).join(', ') || '—';
       tr.querySelector('.st').appendChild(statusBadge(m.status));
       tr.querySelector('.tier').textContent = m.membership_tier || '—';
-      tr.querySelector('.ren').textContent = fmtDate(m.renewal_date);
+      fillExpiryCell(tr.querySelector('.ren'), m);
       tr.querySelector('.upd').textContent = fmtDate(m.updated_at);
       tr.addEventListener('click', function () { openMember(m.id); });
       tr.addEventListener('keydown', function (e) {
@@ -490,6 +655,9 @@
       var loc = document.createElement('div');
       loc.textContent = [m.city, m.country].filter(Boolean).join(', ') || 'No location';
       meta.appendChild(loc);
+      var expiryLine = document.createElement('div');
+      fillExpiryCell(expiryLine, m);
+      meta.appendChild(expiryLine);
       li.appendChild(meta);
       li.addEventListener('click', function () { openMember(m.id); });
       cards.appendChild(li);
@@ -545,6 +713,7 @@
     var bookletPatch = bookletUpdateArgs(booklet, id ? currentMember : null);
     var skippedClears = bookletPatch.skippedClears;
     var args = buildMemberArgs(form);
+    var expiryInfo = applyExpiryArgs(args, form, id ? 'update' : 'insert');
     if (id) {
       Object.keys(bookletPatch.args).forEach(function (k) { args[k] = bookletPatch.args[k]; });
     }
@@ -555,9 +724,9 @@
       var res;
       if (id) {
         args.p_member_id = Number(id);
-        res = await client.rpc(RPC.adminUpdateMember, args);
+        res = await PUAuth.adminUpdateMember(client, args);
       } else {
-        res = await client.rpc(RPC.adminInsertMember, args);
+        res = await PUAuth.adminInsertMember(client, args);
       }
       if (res.error) {
         showAlert(alertEl, friendlyError(res.error, 'Could not save member.'), 'error');
@@ -612,6 +781,9 @@
             ' left unchanged because the admin form cannot clear booklet fields. The member owner can submit an empty value for approval.'
           );
         }
+        if (expiryInfo.skippedBlankDate) {
+          saveParts.push('Expiry date was left unchanged. Use Clear expiry to remove the date and term.');
+        }
         var saveKind = (bookletErr || emailErr) ? 'error' : 'ok';
         showAlert(alertEl, saveParts.join(' '), saveKind);
         if (history.replaceState) {
@@ -646,20 +818,41 @@
 
     $('admin-signout-btn').addEventListener('click', signOut);
     $('admin-add-btn').addEventListener('click', openNew);
-    $('admin-back-btn').addEventListener('click', function () { backToList(true); renderList(); });
+    $('admin-back-btn').addEventListener('click', function () { backToList(true); loadMembers(); });
     $('admin-list-retry').addEventListener('click', loadMembers);
     $('admin-empty-reset').addEventListener('click', function () {
-      listFilters.search = ''; listFilters.status = '';
-      $('f-search').value = ''; $('f-status').value = '';
-      renderList();
+      resetListFilters();
+      loadMembers();
     });
     $('f-search').addEventListener('input', function () { listFilters.search = $('f-search').value; renderList(); });
     $('f-status').addEventListener('change', function () { listFilters.status = $('f-status').value; renderList(); });
+    if ($('f-expiry')) {
+      $('f-expiry').addEventListener('change', function () {
+        listFilters.expiry = $('f-expiry').value || 'all';
+        syncExpiryFilterUi();
+        loadMembers();
+      });
+    }
+    if ($('f-expire-before')) {
+      $('f-expire-before').addEventListener('change', function () {
+        listFilters.expireBefore = $('f-expire-before').value || '';
+        loadMembers();
+      });
+    }
+    if ($('f-sort')) {
+      $('f-sort').addEventListener('change', function () {
+        listFilters.order = $('f-sort').value || 'id';
+        loadMembers();
+      });
+    }
     $('f-reset').addEventListener('click', function () {
-      listFilters.search = ''; listFilters.status = '';
-      $('f-search').value = ''; $('f-status').value = '';
-      renderList();
+      resetListFilters();
+      loadMembers();
     });
+    if ($('m-renewal')) {
+      $('m-renewal').addEventListener('input', updateExpiryHint);
+      $('m-renewal').addEventListener('change', updateExpiryHint);
+    }
     $('admin-member-form').addEventListener('submit', async function (ev) {
       ev.preventDefault();
       await saveMember();
@@ -737,6 +930,140 @@
     var params = new URLSearchParams(location.search);
     if (params.get('q')) { listFilters.search = params.get('q'); $('f-search').value = listFilters.search; }
     if (params.get('status')) { listFilters.status = params.get('status'); $('f-status').value = listFilters.status; }
+    if (params.get('expiry') && $('f-expiry')) {
+      var ex = params.get('expiry');
+      if (ex === 'missing' || ex === 'expired' || ex === 'all') {
+        listFilters.expiry = ex;
+        $('f-expiry').value = ex;
+      }
+    }
+    if (params.get('before') && $('f-expire-before')) {
+      listFilters.expireBefore = params.get('before');
+      $('f-expire-before').value = listFilters.expireBefore;
+    }
+    if (params.get('sort') && $('f-sort')) {
+      var sort = params.get('sort');
+      if (sort === 'id' || sort === 'renewal_date_asc' || sort === 'renewal_date_desc') {
+        listFilters.order = sort;
+        $('f-sort').value = sort;
+      }
+    }
+    syncExpiryFilterUi();
+
+    function openExpiryModal(action, title, body, confirmLabel, confirmClass) {
+      pendingExpiryAction = action;
+      $('admin-expiry-modal-title').textContent = title;
+      $('admin-expiry-modal-body').textContent = body;
+      var btn = $('admin-expiry-modal-confirm');
+      btn.textContent = confirmLabel || 'Confirm';
+      btn.className = confirmClass || 'btn btn-primary';
+      $('admin-expiry-modal').hidden = false;
+      btn.focus();
+    }
+
+    function closeExpiryModal() {
+      var modal = $('admin-expiry-modal');
+      if (modal) modal.hidden = true;
+      pendingExpiryAction = null;
+    }
+
+    async function renewMember() {
+      var alertEl = $('admin-detail-alert');
+      var id = ($('m-id').value || '').trim();
+      var years = Number($('m-renew-term') && $('m-renew-term').value);
+      if (!id) return;
+      if (!(years >= 1 && years <= 5)) {
+        showAlert(alertEl, 'Pick a membership term of 1 to 5 years to renew.', 'error');
+        return;
+      }
+      setBusy($('admin-renew-btn'), true, 'Renewing…');
+      var res = await PUAuth.adminRenewMember(client, id, years);
+      setBusy($('admin-renew-btn'), false, 'Renew membership');
+      if (res.error) {
+        showAlert(alertEl, friendlyError(res.error, 'Could not renew this membership.'), 'error');
+        return;
+      }
+      var row = res.data;
+      if (Array.isArray(row)) row = row[0];
+      if (row) {
+        upsertCache(row);
+        fillForm(row, false);
+        var date = fmtDateOnly(row.renewal_date);
+        var days = formatDaysLeft(daysUntilRenewal(row.renewal_date));
+        var term = termLabel(row.membership_term_years);
+        showAlert(alertEl, 'Membership renewed' + (term ? ' for ' + term : '') + '. New expiry: ' + date + ' (' + days + ').', 'ok');
+      } else {
+        showAlert(alertEl, 'Membership renewed.', 'ok');
+      }
+    }
+
+    async function clearExpiry() {
+      var alertEl = $('admin-detail-alert');
+      var id = ($('m-id').value || '').trim();
+      if (!id) return;
+      setBusy($('admin-clear-expiry-btn'), true, 'Clearing…');
+      var res = await PUAuth.adminUpdateMember(client, {
+        p_member_id: Number(id),
+        p_clear_renewal_date: true
+      });
+      setBusy($('admin-clear-expiry-btn'), false, 'Clear expiry');
+      if (res.error) {
+        showAlert(alertEl, friendlyError(res.error, 'Could not clear the expiry date.'), 'error');
+        return;
+      }
+      var row = res.data;
+      if (Array.isArray(row)) row = row[0];
+      if (row) { upsertCache(row); fillForm(row, false); }
+      showAlert(alertEl, 'Expiry date and membership term have been cleared.', 'ok');
+    }
+
+    if ($('admin-renew-btn')) {
+      $('admin-renew-btn').addEventListener('click', function () {
+        var id = ($('m-id').value || '').trim();
+        var years = Number($('m-renew-term') && $('m-renew-term').value);
+        if (!id) return;
+        if (!(years >= 1 && years <= 5)) {
+          showAlert($('admin-detail-alert'), 'Pick a membership term of 1 to 5 years to renew.', 'error');
+          return;
+        }
+        var term = termLabel(years);
+        openExpiryModal(
+          'renew',
+          'Renew membership?',
+          'Renew this membership for ' + term + '? The new expiry is calculated on the server: it extends the current expiry if that date is still valid, or starts from today if the membership has expired or has no date. Status is not changed.',
+          'Renew',
+          'btn btn-primary'
+        );
+      });
+    }
+    if ($('admin-clear-expiry-btn')) {
+      $('admin-clear-expiry-btn').addEventListener('click', function () {
+        var id = ($('m-id').value || '').trim();
+        if (!id) return;
+        openExpiryModal(
+          'clear',
+          'Clear expiry?',
+          'Clear the expiry date and membership term for this member? You can set them again afterwards.',
+          'Clear expiry',
+          'btn admin-btn-danger'
+        );
+      });
+    }
+    var expiryModal = $('admin-expiry-modal');
+    if (expiryModal) {
+      expiryModal.querySelectorAll('[data-modal-close]').forEach(function (el) {
+        el.addEventListener('click', closeExpiryModal);
+      });
+      $('admin-expiry-modal-confirm').addEventListener('click', async function () {
+        var action = pendingExpiryAction;
+        closeExpiryModal();
+        if (action === 'renew') await renewMember();
+        else if (action === 'clear') await clearExpiry();
+      });
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && !expiryModal.hidden) closeExpiryModal();
+      });
+    }
 
     var loginsModal = $('logins-modal');
     if (loginsModal) {
