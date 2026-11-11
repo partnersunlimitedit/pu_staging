@@ -70,13 +70,32 @@
         Invite a new admin, or grant admin access to someone who already has a login. One email can be both an admin and a company member. Only the super admin can invite, rename, or remove other admins. The super admin cannot be removed or demoted.
       </p>
 
+      <form class="admin-filters admin-filters-users" id="admins-filters" aria-label="Filter users" onsubmit="return false;">
+        <div class="field">
+          <label for="u-search">Search</label>
+          <input id="u-search" type="search" placeholder="Email, name, or company…" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="u-role">Role</label>
+          <select id="u-role">
+            <option value="">All roles</option>
+            <option value="admin">Admin</option>
+            <option value="member">Member</option>
+          </select>
+        </div>
+        <div class="admin-filters-actions">
+          <button type="button" class="btn btn-outline" id="u-reset" disabled>Reset</button>
+        </div>
+      </form>
+
       <div id="admins-loading" class="admin-state" hidden>
         <div class="dir-spinner" aria-hidden="true"></div>
         <p>Loading users…</p>
       </div>
       <div id="admins-empty" class="admin-state admin-state-msg" hidden>
-        <p class="dir-state-title">No users found</p>
-        <p class="muted">Users appear here after they have signed up / been created in Auth.</p>
+        <p class="dir-state-title" id="admins-empty-title">No users found</p>
+        <p class="muted" id="admins-empty-msg">Users appear here after they have signed up / been created in Auth.</p>
+        <button type="button" class="btn btn-outline" id="admins-empty-reset" hidden>Reset filters</button>
       </div>
       <div id="admins-error" class="admin-state admin-state-msg" hidden role="alert">
         <p class="dir-state-title">Could not load users</p>

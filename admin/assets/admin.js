@@ -22,6 +22,26 @@
     el.className = 'admin-alert' + (kind ? ' is-' + kind : '');
   }
 
+  function showDetailAlert(message, kind) {
+    var el = $('admin-detail-alert');
+    showAlert(el, message, kind);
+    if (message && el && !el.hidden) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+
+  function flashSavedButton() {
+    var btn = $('admin-save-btn');
+    if (!btn) return;
+    setBusy(btn, false, 'Saved');
+    btn.classList.add('is-saved');
+    window.setTimeout(function () {
+      if (!btn || btn.textContent !== 'Saved') return;
+      btn.classList.remove('is-saved');
+      setBusy(btn, false, 'Save');
+    }, 2500);
+  }
+
   function friendlyError(err, fallback) {
     return PUAuth.friendlyAuthError(err, fallback || 'Something went wrong. Please try again.');
   }
@@ -474,7 +494,7 @@
     }
     $('admin-approve-btn').hidden = false;
     syncApproveButton();
-    showAlert($('admin-detail-alert'), '', null);
+    showDetailAlert('', null);
     var loginsCard = $('admin-logins-card');
     if (loginsCard) {
       if (isNew || !(m && m.id)) {
@@ -531,7 +551,7 @@
     showAlert($('admin-detail-alert'), 'Loading…', 'info');
     var res = await fetchMemberById(id);
     if (res.error) {
-      showAlert($('admin-detail-alert'), friendlyError(res.error, 'Could not load member.'), 'error');
+      showDetailAlert(friendlyError(res.error, 'Could not load member.'), 'error');
       var cached = membersCache.find(function (row) { return String(row.id) === String(id); });
       if (cached) fillForm(cached, false);
       return;
@@ -539,7 +559,7 @@
     var row = res.data;
     if (Array.isArray(row)) row = row[0];
     if (!row) {
-      showAlert($('admin-detail-alert'), 'Member not found.', 'error');
+      showDetailAlert('Member not found.', 'error');
       return;
     }
     upsertCache(row);
@@ -686,18 +706,18 @@
 
   async function saveMember(extra) {
     var alertEl = $('admin-detail-alert');
-    showAlert(alertEl, '', null);
+    showDetailAlert('', null);
     var form = readForm();
     if (extra && extra.status) form.status = extra.status;
 
     if (!form.company_name || !form.continent || !form.country) {
-      showAlert(alertEl, 'Company name, continent and country are required.', 'error');
+      showDetailAlert('Company name, continent and country are required.', 'error');
       return false;
     }
 
     var emailsCheck = readValidatedEmails();
     if (!emailsCheck.ok) {
-      showAlert(alertEl, emailsCheck.error, 'error');
+      showDetailAlert(emailsCheck.error, 'error');
       return false;
     }
     form.email = window.MemberEmails ? MemberEmails.firstMainEmail(emailsCheck.emails) : (form.email || '');
@@ -705,7 +725,7 @@
     var booklet = readBookletForm();
     var bookletCheck = validateBookletFields(booklet);
     if (!bookletCheck.ok) {
-      showAlert(alertEl, bookletCheck.error, 'error');
+      showDetailAlert(bookletCheck.error, 'error');
       return false;
     }
     Object.keys(booklet).forEach(function (k) { form[k] = booklet[k]; });
@@ -729,7 +749,7 @@
         res = await PUAuth.adminInsertMember(client, args);
       }
       if (res.error) {
-        showAlert(alertEl, friendlyError(res.error, 'Could not save member.'), 'error');
+        showDetailAlert(friendlyError(res.error, 'Could not save member.'), 'error');
         setBusy(saveBtn, false, 'Save');
         return false;
       }
@@ -785,18 +805,21 @@
           saveParts.push('Expiry date was left unchanged. Use Clear expiry to remove the date and term.');
         }
         var saveKind = (bookletErr || emailErr) ? 'error' : 'ok';
-        showAlert(alertEl, saveParts.join(' '), saveKind);
+        showDetailAlert(saveParts.join(' '), saveKind);
         if (history.replaceState) {
           history.replaceState(null, '', 'members.html?id=' + encodeURIComponent(saved.id));
         }
+        setBusy(saveBtn, false, saveKind === 'ok' ? 'Saved' : 'Save');
+        if (saveKind === 'ok') flashSavedButton();
       } else {
-        showAlert(alertEl, 'Saved.', 'ok');
+        showDetailAlert('Saved.', 'ok');
         await loadMembers();
+        flashSavedButton();
       }
-      setBusy(saveBtn, false, 'Save');
+      if (saveBtn && !saveBtn.classList.contains('is-saved')) setBusy(saveBtn, false, 'Save');
       return true;
     } catch (err) {
-      showAlert(alertEl, friendlyError(err, 'Could not save member.'), 'error');
+      showDetailAlert(friendlyError(err, 'Could not save member.'), 'error');
       setBusy(saveBtn, false, 'Save');
       return false;
     }
@@ -863,7 +886,7 @@
       var id = ($('m-id').value || '').trim();
       if (!id) {
         var ok = await saveMember({ status: 'active' });
-        if (ok) showAlert(alertEl, 'Member approved (status = active).', 'ok');
+        if (ok) showDetailAlert('Member approved (status = active).', 'ok');
         return;
       }
       setBusy($('admin-approve-btn'), true, 'Approving…');
@@ -871,13 +894,13 @@
       var res = await client.rpc(RPC.adminUpdateMember, args);
       setBusy($('admin-approve-btn'), false, 'Approve');
       if (res.error) {
-        showAlert(alertEl, friendlyError(res.error, 'Could not approve member.'), 'error');
+        showDetailAlert(friendlyError(res.error, 'Could not approve member.'), 'error');
         return;
       }
       var row = res.data;
       if (Array.isArray(row)) row = row[0];
       if (row) { upsertCache(row); fillForm(row, false); }
-      showAlert(alertEl, 'Member approved (status = active).', 'ok');
+      showDetailAlert('Member approved (status = active).', 'ok');
       syncApproveButton();
     });
 
@@ -889,13 +912,13 @@
       var res = await client.rpc(RPC.adminHideMember, { p_member_id: Number(id) });
       setBusy($('admin-hide-btn'), false, 'Hide');
       if (res.error) {
-        showAlert(alertEl, friendlyError(res.error, 'Could not hide member.'), 'error');
+        showDetailAlert(friendlyError(res.error, 'Could not hide member.'), 'error');
         return;
       }
       var row = res.data;
       if (Array.isArray(row)) row = row[0];
       if (row) { upsertCache(row); fillForm(row, false); }
-      showAlert(alertEl, 'Hidden from directory (status = pending).', 'ok');
+      showDetailAlert('Hidden from directory (status = pending).', 'ok');
     });
 
     $('admin-remove-btn').addEventListener('click', openModal);
@@ -912,13 +935,13 @@
         p_note: 'Removed via admin portal'
       });
       if (res.error) {
-        showAlert(alertEl, friendlyError(res.error, 'Could not remove member.'), 'error');
+        showDetailAlert(friendlyError(res.error, 'Could not remove member.'), 'error');
         return;
       }
       var row = res.data;
       if (Array.isArray(row)) row = row[0];
       if (row) { upsertCache(row); fillForm(row, false); }
-      showAlert(alertEl, 'Member removed (soft delete; status = removed).', 'ok');
+      showDetailAlert('Member removed (soft delete; status = removed).', 'ok');
     });
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape' && !$('admin-modal').hidden) closeModal();
@@ -973,14 +996,14 @@
       var years = Number($('m-renew-term') && $('m-renew-term').value);
       if (!id) return;
       if (!(years >= 1 && years <= 5)) {
-        showAlert(alertEl, 'Pick a membership term of 1 to 5 years to renew.', 'error');
+        showDetailAlert('Pick a membership term of 1 to 5 years to renew.', 'error');
         return;
       }
       setBusy($('admin-renew-btn'), true, 'Renewing…');
       var res = await PUAuth.adminRenewMember(client, id, years);
       setBusy($('admin-renew-btn'), false, 'Renew membership');
       if (res.error) {
-        showAlert(alertEl, friendlyError(res.error, 'Could not renew this membership.'), 'error');
+        showDetailAlert(friendlyError(res.error, 'Could not renew this membership.'), 'error');
         return;
       }
       var row = res.data;
@@ -991,9 +1014,9 @@
         var date = fmtDateOnly(row.renewal_date);
         var days = formatDaysLeft(daysUntilRenewal(row.renewal_date));
         var term = termLabel(row.membership_term_years);
-        showAlert(alertEl, 'Membership renewed' + (term ? ' for ' + term : '') + '. New expiry: ' + date + ' (' + days + ').', 'ok');
+        showDetailAlert('Membership renewed' + (term ? ' for ' + term : '') + '. New expiry: ' + date + ' (' + days + ').', 'ok');
       } else {
-        showAlert(alertEl, 'Membership renewed.', 'ok');
+        showDetailAlert('Membership renewed.', 'ok');
       }
     }
 
@@ -1008,13 +1031,13 @@
       });
       setBusy($('admin-clear-expiry-btn'), false, 'Clear expiry');
       if (res.error) {
-        showAlert(alertEl, friendlyError(res.error, 'Could not clear the expiry date.'), 'error');
+        showDetailAlert(friendlyError(res.error, 'Could not clear the expiry date.'), 'error');
         return;
       }
       var row = res.data;
       if (Array.isArray(row)) row = row[0];
       if (row) { upsertCache(row); fillForm(row, false); }
-      showAlert(alertEl, 'Expiry date and membership term have been cleared.', 'ok');
+      showDetailAlert('Expiry date and membership term have been cleared.', 'ok');
     }
 
     if ($('admin-renew-btn')) {
@@ -1023,7 +1046,7 @@
         var years = Number($('m-renew-term') && $('m-renew-term').value);
         if (!id) return;
         if (!(years >= 1 && years <= 5)) {
-          showAlert($('admin-detail-alert'), 'Pick a membership term of 1 to 5 years to renew.', 'error');
+          showDetailAlert('Pick a membership term of 1 to 5 years to renew.', 'error');
           return;
         }
         var term = termLabel(years);
@@ -1098,6 +1121,7 @@
 
   /* ---------- ADMINS PAGE ---------- */
   var usersCache = [];
+  var userFilters = { search: '', role: '' };
   var pendingConfirm = null;
   var pendingRenameUser = null;
 
@@ -1176,6 +1200,58 @@
     });
   }
 
+  function userRoleKey(u) {
+    if (isAdminUser(u) || isSuperUser(u)) return 'admin';
+    return 'member';
+  }
+
+  function anyUserFilter() {
+    return !!(userFilters.search || userFilters.role);
+  }
+
+  function filteredUsers() {
+    var q = (userFilters.search || '').trim().toLowerCase();
+    var role = userFilters.role || '';
+    return usersCache.filter(function (u) {
+      if (role && userRoleKey(u) !== role) return false;
+      if (!q) return true;
+      var hay = [u.email, u.full_name, u.company_name, u.member_role]
+        .map(function (v) { return String(v || '').toLowerCase(); }).join(' ');
+      return hay.indexOf(q) !== -1;
+    });
+  }
+
+  function syncUserFilterUrl() {
+    if (!history.replaceState) return;
+    var p = new URLSearchParams();
+    if (userFilters.search) p.set('q', userFilters.search);
+    if (userFilters.role) p.set('role', userFilters.role);
+    var qs = p.toString();
+    history.replaceState(null, '', 'admins.html' + (qs ? '?' + qs : ''));
+  }
+
+  function resetUserFilters() {
+    userFilters.search = '';
+    userFilters.role = '';
+    if ($('u-search')) $('u-search').value = '';
+    if ($('u-role')) $('u-role').value = '';
+    syncUserFilterUrl();
+    renderUsers();
+  }
+
+  function readUserFiltersFromUrl() {
+    var params = new URLSearchParams(location.search);
+    if (params.get('q')) {
+      userFilters.search = params.get('q');
+      if ($('u-search')) $('u-search').value = userFilters.search;
+    }
+    var role = params.get('role');
+    if (role === 'admin' || role === 'member') {
+      userFilters.role = role;
+      if ($('u-role')) $('u-role').value = role;
+    }
+  }
+
   async function loadUsers() {
     hideUserStates();
     var loading = $('admins-loading');
@@ -1203,11 +1279,29 @@
     tbody.innerHTML = '';
     if (cards) cards.innerHTML = '';
 
-    if (!usersCache.length) {
+    var rows = filteredUsers();
+    var filtered = anyUserFilter();
+    if ($('u-reset')) $('u-reset').disabled = !filtered;
+
+    if ($('admins-count')) {
+      $('admins-count').textContent = usersCache.length
+        ? ('Showing ' + rows.length + ' of ' + usersCache.length + ' user' + (usersCache.length === 1 ? '' : 's'))
+        : '0 users';
+    }
+
+    if (!usersCache.length || !rows.length) {
       if (empty) empty.hidden = false;
       if (wrap) wrap.hidden = true;
       if (cards) cards.hidden = true;
-      $('admins-count').textContent = '0 users';
+      if ($('admins-empty-title')) {
+        $('admins-empty-title').textContent = usersCache.length ? 'No users match' : 'No users found';
+      }
+      if ($('admins-empty-msg')) {
+        $('admins-empty-msg').textContent = usersCache.length
+          ? 'Try clearing the search or role filter.'
+          : 'Users appear here after they have signed up / been created in Auth.';
+      }
+      if ($('admins-empty-reset')) $('admins-empty-reset').hidden = !usersCache.length;
       return;
     }
     if (empty) empty.hidden = true;
@@ -1221,7 +1315,7 @@
       if (cards) cards.hidden = true;
     }
 
-    usersCache.forEach(function (u) {
+    rows.forEach(function (u) {
       var tr = document.createElement('tr');
       tr.innerHTML = '<td class="em"></td><td class="nm"></td><td class="rl"></td><td class="co"></td><td class="cr"></td><td class="ac"></td>';
       tr.querySelector('.em').textContent = u.email || '—';
@@ -1265,7 +1359,6 @@
       }
     });
 
-    $('admins-count').textContent = usersCache.length + ' user' + (usersCache.length === 1 ? '' : 's');
   }
 
   function closeInviteModal() {
@@ -1477,6 +1570,23 @@
       el.addEventListener('click', closeRenameModal);
     });
     $('admins-retry').addEventListener('click', loadUsers);
+    if ($('u-search')) {
+      $('u-search').addEventListener('input', function () {
+        userFilters.search = $('u-search').value;
+        syncUserFilterUrl();
+        renderUsers();
+      });
+    }
+    if ($('u-role')) {
+      $('u-role').addEventListener('change', function () {
+        userFilters.role = $('u-role').value;
+        syncUserFilterUrl();
+        renderUsers();
+      });
+    }
+    if ($('u-reset')) $('u-reset').addEventListener('click', resetUserFilters);
+    if ($('admins-empty-reset')) $('admins-empty-reset').addEventListener('click', resetUserFilters);
+    readUserFiltersFromUrl();
     $('admins-modal').querySelectorAll('[data-modal-close]').forEach(function (el) {
       el.addEventListener('click', closeConfirmModal);
     });

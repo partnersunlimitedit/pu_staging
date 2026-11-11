@@ -139,6 +139,15 @@
   background: var(--brand-soft);
   border-color: rgba(124, 58, 237, .18);
 }
+.admin-form .admin-alert {
+  margin-top: 1.25rem;
+  margin-bottom: 1rem;
+}
+#admin-save-btn.is-saved {
+  background: #15803d;
+  border-color: #15803d;
+  color: #fff;
+}
 
 /* ---- Sign-in ---- */
 .admin-signin-wrap {
@@ -476,12 +485,18 @@
   .admin-cards:not([hidden]) { display: grid; }
 }
 
+.admin-filters-users {
+  grid-template-columns: minmax(14rem, 2fr) minmax(12rem, 1fr) auto;
+}
+
 @media (max-width: 1400px) {
   .admin-filters { grid-template-columns: minmax(14rem, 2fr) repeat(2, minmax(12rem, 1fr)); }
+  .admin-filters-users { grid-template-columns: minmax(14rem, 2fr) minmax(12rem, 1fr) auto; }
   .admin-filters-actions { grid-column: auto; }
 }
 @media (max-width: 720px) {
   .admin-filters { grid-template-columns: 1fr; }
+  .admin-filters-users { grid-template-columns: 1fr; }
   .admin-filters-actions { grid-column: auto; }
   .admin-filters-actions .btn { width: 100%; }
   .admin-form-grid { grid-template-columns: 1fr; }
