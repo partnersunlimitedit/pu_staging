@@ -85,7 +85,7 @@
       <form class="admin-filters" id="admin-filters" aria-label="Filter members" onsubmit="return false;">
         <div class="field">
           <label for="f-search">Search</label>
-          <input id="f-search" type="search" placeholder="Company, contact, country, city…" autocomplete="off">
+          <input id="f-search" type="search" placeholder="Company, contact, country, city, address…" autocomplete="off">
         </div>
         <div class="field">
           <label for="f-status">Status</label>
@@ -212,6 +212,47 @@
               <div class="email-list" data-email-list></div>
               <button type="button" class="btn btn-outline" data-email-add>Add email</button>
               <p class="field-note muted">Up to 8 addresses. Each one is labelled Main, Import or Export. Several Main addresses are allowed. These are directory contacts, not extra logins.</p>
+            </div>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Office and booklet contacts</legend>
+          <p class="field-note muted" style="margin-top:0;margin-bottom:1rem;">These details are for signed-in members and admins, not public visitors. The admin form can add or change them, but cannot clear a filled field. To clear one, the member owner can submit an empty value for approval.</p>
+          <div class="form-grid admin-form-grid">
+            <div class="field admin-span-2">
+              <label for="m-address">Office address</label>
+              <textarea id="m-address" name="address" rows="3" maxlength="500"></textarea>
+            </div>
+          </div>
+          <p class="admin-form-subhead">Principal / main contact</p>
+          <div class="form-grid admin-form-grid">
+            <div class="field">
+              <label for="m-principal-name">Name</label>
+              <input id="m-principal-name" name="principal_name" type="text" maxlength="200">
+            </div>
+            <div class="field">
+              <label for="m-principal-email">Email</label>
+              <input id="m-principal-email" name="principal_email" type="email" maxlength="254" autocomplete="off">
+            </div>
+            <div class="field admin-span-2">
+              <label for="m-principal-phone">Phone</label>
+              <input id="m-principal-phone" name="principal_phone" type="text" maxlength="100" autocomplete="off">
+            </div>
+          </div>
+          <p class="admin-form-subhead">PU Network contact</p>
+          <div class="form-grid admin-form-grid">
+            <div class="field">
+              <label for="m-network-name">Name</label>
+              <input id="m-network-name" name="network_name" type="text" maxlength="200">
+            </div>
+            <div class="field">
+              <label for="m-network-email">Email</label>
+              <input id="m-network-email" name="network_email" type="email" maxlength="254" autocomplete="off">
+            </div>
+            <div class="field admin-span-2">
+              <label for="m-network-phone">Phone</label>
+              <input id="m-network-phone" name="network_phone" type="text" maxlength="100" autocomplete="off">
             </div>
           </div>
         </fieldset>
