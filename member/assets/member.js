@@ -28,6 +28,35 @@
     } catch (e) { return '—'; }
   }
 
+  var MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  function fmtDateOnly(iso) {
+    if (!iso) return '—';
+    var s = String(iso).slice(0, 10);
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+    if (!m) return fmtDate(iso);
+    return String(Number(m[3])) + ' ' + MONTHS_SHORT[Number(m[2]) - 1] + ' ' + m[1];
+  }
+
+  function termLabel(years) {
+    if (years == null || years === '') return '';
+    var n = Number(years);
+    if (!n) return '';
+    return n === 1 ? '1 year' : (n + ' years');
+  }
+
+  function formatDaysLeft(days) {
+    if (days == null) return 'No expiry set';
+    var n = Number(days);
+    if (isNaN(n)) return '—';
+    if (n === 0) return 'Expires today';
+    if (n === 1) return '1 day left';
+    if (n > 0) return n + ' days left';
+    var ago = -n;
+    if (ago === 1) return 'Expired (1 day ago)';
+    return 'Expired (' + ago + ' days ago)';
+  }
+
   function setText(id, value) {
     var el = $(id);
     if (el) el.textContent = value == null || value === '' ? '—' : String(value);
@@ -181,8 +210,17 @@
       : '—';
     setText('mp-listed', listed);
     setText('mp-tier', (mem && mem.membership_tier) || (row && row.membership_tier));
-    var renewal = (mem && mem.renewal_date) || (row && row.renewal_date);
-    setText('mp-renewal', renewal ? fmtDate(renewal) : '—');
+    var renewal = (row && row.renewal_date) || (mem && mem.renewal_date);
+    setText('mp-renewal', renewal ? fmtDateOnly(renewal) : 'No expiry set');
+    var term = (row && row.membership_term_years) || (mem && mem.membership_term_years);
+    setText('mp-term', termLabel(term) || '—');
+    var days = null;
+    if (row && row.days_until_renewal != null && row.days_until_renewal !== '') {
+      days = row.days_until_renewal;
+    } else if (mem && mem.days_until_renewal != null && mem.days_until_renewal !== '') {
+      days = mem.days_until_renewal;
+    }
+    setText('mp-days', renewal ? formatDaysLeft(days) : 'No expiry set');
   }
 
   function fillEditForm(row) {

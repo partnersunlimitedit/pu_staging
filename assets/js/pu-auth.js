@@ -17,6 +17,7 @@
       adminGetMember: 'admin_get_member',
       adminInsertMember: 'admin_insert_member',
       adminUpdateMember: 'admin_update_member',
+      adminRenewMember: 'admin_renew_member',
       adminSetMemberEmails: 'admin_set_member_emails',
       adminHideMember: 'admin_hide_member',
       adminRemoveMember: 'admin_remove_member',
@@ -140,10 +141,22 @@
       if (/valid email is required/i.test(msg)) {
         return 'Enter a valid email address.';
       }
-      if (/p_user_id/i.test(msg)) {
+      if (/p_user_id/i.test(msg) || /p_member_id/i.test(msg)) {
         return 'A required value is missing. Please try again.';
       }
-      return 'That value is not valid. Check the fields (for example name, email, location or status) and try again.';
+      if (/term must be 1 to 5 years/i.test(msg)) {
+        return 'Membership term must be 1 to 5 years.';
+      }
+      if (/cannot clear and set expiry/i.test(msg)) {
+        return 'You cannot clear the expiry and set a new date or term in the same change.';
+      }
+      if (/choose expired or missing/i.test(msg)) {
+        return 'Choose expired or missing expiry, not both.';
+      }
+      if (/p_order/i.test(msg)) {
+        return 'That sort order is not valid.';
+      }
+      return 'That value is not valid. Check the fields (for example name, email, location, status, expiry or term) and try again.';
     }
     if (code === 'P0002') {
       if (/must sign up|have a login first/i.test(msg)) {
@@ -371,6 +384,54 @@
     return siteBaseUrl() + rel;
   }
 
+  function omitUndefined(args) {
+    var out = {};
+    Object.keys(args || {}).forEach(function (k) {
+      if (args[k] !== undefined) out[k] = args[k];
+    });
+    return out;
+  }
+
+  /**
+   * admin_list_members with optional named filters.
+   * A call with no opts (or all defaults) is a no-arg RPC, same as today.
+   * Never sends expired_only and missing_renewal_only together.
+   */
+  async function adminListMembers(client, opts) {
+    opts = opts || {};
+    var args = {};
+    if (opts.p_renewal_on_or_before) args.p_renewal_on_or_before = opts.p_renewal_on_or_before;
+    if (opts.p_renewal_on_or_after) args.p_renewal_on_or_after = opts.p_renewal_on_or_after;
+    if (opts.p_expired_only && opts.p_missing_renewal_only) {
+      return {
+        data: null,
+        error: { code: '22023', message: 'choose expired or missing, not both' }
+      };
+    }
+    if (opts.p_expired_only) args.p_expired_only = true;
+    if (opts.p_missing_renewal_only) args.p_missing_renewal_only = true;
+    if (opts.p_order && opts.p_order !== 'id') args.p_order = opts.p_order;
+    if (!Object.keys(args).length) {
+      return client.rpc(CONFIG.rpc.adminListMembers);
+    }
+    return client.rpc(CONFIG.rpc.adminListMembers, args);
+  }
+
+  async function adminInsertMember(client, args) {
+    return client.rpc(CONFIG.rpc.adminInsertMember, omitUndefined(args));
+  }
+
+  async function adminUpdateMember(client, args) {
+    return client.rpc(CONFIG.rpc.adminUpdateMember, omitUndefined(args));
+  }
+
+  async function adminRenewMember(client, memberId, termYears) {
+    return client.rpc(CONFIG.rpc.adminRenewMember, {
+      p_member_id: Number(memberId),
+      p_term_years: Number(termYears)
+    });
+  }
+
   function magicLinkRedirectTo() {
     return absoluteUrlFor('signIn');
   }
@@ -400,6 +461,10 @@
     siteBaseUrl: siteBaseUrl,
     absoluteUrlFor: absoluteUrlFor,
     magicLinkRedirectTo: magicLinkRedirectTo,
-    setPasswordRedirectTo: setPasswordRedirectTo
+    setPasswordRedirectTo: setPasswordRedirectTo,
+    adminListMembers: adminListMembers,
+    adminInsertMember: adminInsertMember,
+    adminUpdateMember: adminUpdateMember,
+    adminRenewMember: adminRenewMember
   };
 })(typeof window !== 'undefined' ? window : this);
