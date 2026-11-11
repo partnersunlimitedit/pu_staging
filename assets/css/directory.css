@@ -110,13 +110,15 @@
   margin-bottom: .9rem;
 }
 .dir-meta { display: grid; gap: .45rem; margin: 0 0 1rem; font-size: .93rem; }
-.dir-meta div { display: grid; grid-template-columns: 6.2rem 1fr; gap: .5rem; }
+.dir-meta div { display: grid; grid-template-columns: 7rem 1fr; gap: .5rem; align-items: start; }
 .dir-meta dt { font-weight: 600; color: var(--ink-soft); }
 .dir-meta dd { margin: 0; color: var(--body); overflow-wrap: anywhere; }
-.dir-email-list {
+.dir-email-list,
+.dir-contact-block {
   display: grid;
   gap: .4rem;
 }
+.dir-address-multiline { white-space: pre-wrap; }
 .dir-email {
   display: inline-flex;
   align-items: baseline;
