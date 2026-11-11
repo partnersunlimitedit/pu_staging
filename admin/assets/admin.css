@@ -175,7 +175,10 @@
 .admin-form input[type="url"],
 .admin-form input[type="text"],
 .admin-form input[type="email"],
-.admin-form input[type="search"] {
+.admin-form input[type="search"],
+.admin-modal-form select,
+.admin-modal-form input[type="email"],
+.admin-modal-form input[type="text"] {
   width: 100%;
   font: inherit;
   font-size: .95rem;
@@ -195,7 +198,8 @@
   appearance: none;
   cursor: pointer;
 }
-.admin-form select {
+.admin-form select,
+.admin-modal-form select {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right .9rem center;
@@ -208,7 +212,9 @@
 .admin-filters input:focus,
 .admin-form select:focus,
 .admin-form input:focus,
-.admin-form textarea:focus {
+.admin-form textarea:focus,
+.admin-modal-form select:focus,
+.admin-modal-form input:focus {
   outline: none;
   border-color: var(--brand);
   background-color: #fff;

@@ -357,7 +357,7 @@
 
       <section class="form-card admin-form" id="admin-logins-card" hidden style="margin-top:1.5rem;">
         <h2 class="section-title" style="font-size:1.15rem;">Logins</h2>
-        <p class="muted" style="margin-top:-0.4rem;margin-bottom:1rem;font-size:.9rem;">Owner and staff linked to this company. Inviting new logins is disabled until email sending is set up.</p>
+        <p class="muted" style="margin-top:-0.4rem;margin-bottom:1rem;font-size:.9rem;">Owner and staff linked to this company. Invite a new login by email.</p>
         <div id="logins-alert" class="admin-alert" hidden role="alert"></div>
         <div id="logins-empty" class="muted" hidden>No logins linked yet.</div>
         <div class="admin-table-wrap" id="logins-table-wrap" hidden>
@@ -375,9 +375,8 @@
           </table>
         </div>
         <div class="admin-form-actions" style="border:0;padding-top:1rem;">
-          <button type="button" class="btn btn-outline" id="logins-invite-btn" disabled title="Invites are not enabled yet">Invite login</button>
+          <button type="button" class="btn btn-outline" id="logins-invite-btn">Invite login</button>
         </div>
-        <p class="field-note muted">Coming once email sending is set up.</p>
       </section>
     </section>
   </div>
@@ -405,6 +404,34 @@
       <button type="button" class="btn btn-outline" data-modal-close>Cancel</button>
       <button type="button" class="btn btn-primary" id="admin-expiry-modal-confirm">Confirm</button>
     </div>
+  </div>
+</div>
+
+
+<div id="logins-invite-modal" class="admin-modal" hidden>
+  <div class="admin-modal-backdrop" data-invite-login-close></div>
+  <div class="admin-modal-dialog form-card" role="dialog" aria-modal="true" aria-labelledby="logins-invite-title">
+    <h2 id="logins-invite-title" class="section-title" style="font-size:1.25rem;">Invite login</h2>
+    <p class="muted">They will get an email to set a password and sign in for this company.</p>
+    <form id="logins-invite-form" class="admin-modal-form">
+      <div class="field">
+        <label for="logins-invite-role">Role</label>
+        <select id="logins-invite-role" name="role" required>
+          <option value="owner">Owner</option>
+          <option value="staff">Staff</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="logins-invite-email">Email</label>
+        <input id="logins-invite-email" name="email" type="email" required maxlength="254" autocomplete="off">
+        <p class="field-note muted" id="logins-invite-email-hint">You can use the company's main email, or enter a different address.</p>
+      </div>
+      <div id="logins-invite-form-alert" class="admin-alert" hidden role="alert"></div>
+      <div class="admin-modal-actions">
+        <button type="button" class="btn btn-outline" data-invite-login-close>Cancel</button>
+        <button type="submit" class="btn btn-primary" id="logins-invite-continue">Continue</button>
+      </div>
+    </form>
   </div>
 </div>
 
