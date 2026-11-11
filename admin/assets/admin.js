@@ -51,6 +51,111 @@
     return String(text || '').split(',').map(function (p) { return p.trim(); }).filter(Boolean);
   }
 
+
+  var BOOKLET_FIELDS = [
+    'address',
+    'principal_name', 'principal_email', 'principal_phone',
+    'network_name', 'network_email', 'network_phone'
+  ];
+
+  var FIELD_LABELS = {
+    company_name: 'Company name',
+    contact_person: 'Contact person',
+    website: 'Website',
+    continent: 'Continent',
+    region: 'Region',
+    country: 'Country',
+    city: 'City',
+    ports: 'Ports',
+    description: 'Description',
+    email: 'Email',
+    emails: 'Emails',
+    address: 'Office address',
+    principal_name: 'Principal name',
+    principal_email: 'Principal email',
+    principal_phone: 'Principal phone',
+    network_name: 'Network name',
+    network_email: 'Network email',
+    network_phone: 'Network phone'
+  };
+
+  function fieldLabel(k) {
+    return FIELD_LABELS[k] || String(k || '').replace(/_/g, ' ');
+  }
+
+  function bookletInputId(key, prefix) {
+    return prefix + key.replace(/_/g, '-');
+  }
+
+  function normalizeBookletValue(key, value) {
+    var s = String(value == null ? '' : value).trim();
+    if (key === 'principal_email' || key === 'network_email') s = s.toLowerCase();
+    return s;
+  }
+
+  function currentBookletValue(member, key) {
+    if (!member) return '';
+    return normalizeBookletValue(key, member[key]);
+  }
+
+  function validateBookletFields(values) {
+    var emailRe = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+    var phoneRe = /^[+0-9() /.,A-Za-z-]+$/;
+    var limits = {
+      address: 500,
+      principal_name: 200,
+      network_name: 200,
+      principal_phone: 100,
+      network_phone: 100,
+      principal_email: 254,
+      network_email: 254
+    };
+    for (var i = 0; i < BOOKLET_FIELDS.length; i++) {
+      var key = BOOKLET_FIELDS[i];
+      var s = normalizeBookletValue(key, values[key]);
+      if (!s) continue;
+      if (s.length > (limits[key] || 300)) {
+        return { ok: false, error: fieldLabel(key) + ' is too long.' };
+      }
+      if ((key === 'principal_email' || key === 'network_email') && !emailRe.test(s)) {
+        return { ok: false, error: fieldLabel(key) + ' is not a valid email address.' };
+      }
+      if ((key === 'principal_phone' || key === 'network_phone') && !phoneRe.test(s)) {
+        return { ok: false, error: fieldLabel(key) + ' can only use +, digits, spaces, dashes, parentheses, slashes, periods, and letters.' };
+      }
+    }
+    return { ok: true, error: null };
+  }
+
+  function readBookletForm() {
+    var out = {};
+    BOOKLET_FIELDS.forEach(function (key) {
+      var el = $(bookletInputId(key, 'm-'));
+      out[key] = el ? normalizeBookletValue(key, el.value) : '';
+    });
+    return out;
+  }
+
+  /* admin_update_member uses COALESCE: NULL/omitted leaves a field unchanged.
+     Empty string writes '' rather than NULL, so this form does not send blanks
+     to clear. Clearing is via the owner edit-request path. */
+  function bookletUpdateArgs(formValues, previous) {
+    var args = {};
+    var skippedClears = [];
+    BOOKLET_FIELDS.forEach(function (key) {
+      var next = normalizeBookletValue(key, formValues[key]);
+      var prev = currentBookletValue(previous, key);
+      if (next === prev) return;
+      if (next === '') {
+        skippedClears.push(key);
+        return;
+      }
+      args['p_' + key] = next;
+    });
+    return { args: args, skippedClears: skippedClears };
+  }
+
+
   function statusBadge(status) {
     var s = status || 'pending';
     var span = document.createElement('span');
@@ -204,6 +309,10 @@
     $('m-renewal').value = toDateInput(m && m.renewal_date);
     $('m-status').value = (m && m.status) || 'pending';
     $('m-notes').value = (m && m.notes) || '';
+    BOOKLET_FIELDS.forEach(function (key) {
+      var el = $(bookletInputId(key, 'm-'));
+      if (el) el.value = (m && m[key]) || '';
+    });
     $('m-created').textContent = m && m.created_at ? fmtDate(m.created_at) : '—';
     $('m-updated').textContent = m && m.updated_at ? fmtDate(m.updated_at) : '—';
     hydrateEmails(m, isNew);
@@ -275,7 +384,9 @@
       }
       var hay = [
         m.company_name, m.contact_person, m.country, m.city, m.region, m.continent,
-        m.email, emailList, m.membership_tier
+        m.email, emailList, m.membership_tier,
+        m.address, m.principal_name, m.principal_email, m.principal_phone,
+        m.network_name, m.network_email, m.network_phone
       ].map(function (v) { return String(v || '').toLowerCase(); }).join(' ');
       return hay.indexOf(q) !== -1;
     });
@@ -421,8 +532,20 @@
     }
     form.email = window.MemberEmails ? MemberEmails.firstMainEmail(emailsCheck.emails) : (form.email || '');
 
+    var booklet = readBookletForm();
+    var bookletCheck = validateBookletFields(booklet);
+    if (!bookletCheck.ok) {
+      showAlert(alertEl, bookletCheck.error, 'error');
+      return false;
+    }
+    Object.keys(booklet).forEach(function (k) { form[k] = booklet[k]; });
     var id = ($('m-id').value || '').trim();
+    var bookletPatch = bookletUpdateArgs(booklet, id ? currentMember : null);
+    var skippedClears = bookletPatch.skippedClears;
     var args = buildMemberArgs(form);
+    if (id) {
+      Object.keys(bookletPatch.args).forEach(function (k) { args[k] = bookletPatch.args[k]; });
+    }
     var saveBtn = $('admin-save-btn');
     setBusy(saveBtn, true, 'Saving…');
 
@@ -442,6 +565,19 @@
       var saved = res.data;
       if (Array.isArray(saved)) saved = saved[0];
       if (saved) {
+        var bookletErr = null;
+        if (!id && saved.id != null && Object.keys(bookletPatch.args).length) {
+          var bookletRes = await client.rpc(RPC.adminUpdateMember, Object.assign({
+            p_member_id: Number(saved.id)
+          }, bookletPatch.args));
+          if (bookletRes.error) {
+            bookletErr = friendlyError(bookletRes.error, 'Could not save office address or booklet contacts.');
+          } else {
+            var bookletRow = bookletRes.data;
+            if (Array.isArray(bookletRow)) bookletRow = bookletRow[0];
+            if (bookletRow) saved = bookletRow;
+          }
+        }
         var emailErr = null;
         if (saved.id != null && RPC.adminSetMemberEmails) {
           var emailRes = await client.rpc(RPC.adminSetMemberEmails, {
@@ -463,7 +599,19 @@
         }
         upsertCache(saved);
         fillForm(saved, false);
-        showAlert(alertEl, emailErr ? ('Member saved, but the email list could not be updated. ' + emailErr) : 'Saved.', emailErr ? 'error' : 'ok');
+        var saveParts = [];
+        if (bookletErr) saveParts.push('Member saved, but office address or booklet contacts could not be updated. ' + bookletErr);
+        if (emailErr) saveParts.push(bookletErr ? 'The email list could not be updated. ' + emailErr : ('Member saved, but the email list could not be updated. ' + emailErr));
+        if (!saveParts.length) saveParts.push('Saved.');
+        if (skippedClears.length) {
+          saveParts.push(
+            skippedClears.map(fieldLabel).join(', ') +
+            (skippedClears.length === 1 ? ' was' : ' were') +
+            ' left unchanged because the admin form cannot clear booklet fields. The member owner can submit an empty value for approval.'
+          );
+        }
+        var saveKind = (bookletErr || emailErr) ? 'error' : 'ok';
+        showAlert(alertEl, saveParts.join(' '), saveKind);
         if (history.replaceState) {
           history.replaceState(null, '', 'members.html?id=' + encodeURIComponent(saved.id));
         }
@@ -870,7 +1018,7 @@
       var oldV = currentVals ? currentVals[k] : undefined;
       var newV = proposed[k];
       var f = document.createElement('div');
-      f.textContent = k.replace(/_/g, ' ');
+      f.textContent = fieldLabel(k);
       var o = document.createElement('div');
       o.className = 'edit-diff-old';
       o.textContent = formatChangeVal(oldV);

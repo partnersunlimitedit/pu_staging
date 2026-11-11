@@ -64,7 +64,15 @@
             <div><dt>Ports</dt><dd id="mp-ports">—</dd></div>
             <div><dt>Website</dt><dd id="mp-website">—</dd></div>
             <div class="member-span-2"><dt>Description</dt><dd id="mp-description">—</dd></div>
+            <div class="member-span-2"><dt>Office address</dt><dd id="mp-address">—</dd></div>
+            <div><dt>Principal name</dt><dd id="mp-principal-name">—</dd></div>
+            <div><dt>Principal email</dt><dd id="mp-principal-email">—</dd></div>
+            <div><dt>Principal phone</dt><dd id="mp-principal-phone">—</dd></div>
+            <div><dt>Network name</dt><dd id="mp-network-name">—</dd></div>
+            <div><dt>Network email</dt><dd id="mp-network-email">—</dd></div>
+            <div><dt>Network phone</dt><dd id="mp-network-phone">—</dd></div>
           </dl>
+          <p class="member-note">Office address and principal / PU Network contacts are visible to signed-in members and admins, not to public visitors.</p>
         </section>
 
         <section class="member-card" aria-labelledby="membership-heading">
@@ -101,6 +109,37 @@
               <button type="button" class="btn btn-outline" data-email-add>Add email</button>
               <p class="field-note muted">Up to 8 addresses. Each one is labelled Main, Import or Export. Several Main addresses are allowed.</p>
             </div>
+            <div class="field member-span-2">
+              <label for="e-address">Office address</label>
+              <textarea id="e-address" name="address" rows="3" maxlength="500"></textarea>
+            </div>
+            <p class="member-form-subhead member-span-2">Principal / main contact</p>
+            <div class="field">
+              <label for="e-principal-name">Name</label>
+              <input id="e-principal-name" name="principal_name" type="text" maxlength="200">
+            </div>
+            <div class="field">
+              <label for="e-principal-email">Email</label>
+              <input id="e-principal-email" name="principal_email" type="email" maxlength="254" autocomplete="off">
+            </div>
+            <div class="field member-span-2">
+              <label for="e-principal-phone">Phone</label>
+              <input id="e-principal-phone" name="principal_phone" type="text" maxlength="100" autocomplete="off">
+            </div>
+            <p class="member-form-subhead member-span-2">PU Network contact</p>
+            <div class="field">
+              <label for="e-network-name">Name</label>
+              <input id="e-network-name" name="network_name" type="text" maxlength="200">
+            </div>
+            <div class="field">
+              <label for="e-network-email">Email</label>
+              <input id="e-network-email" name="network_email" type="email" maxlength="254" autocomplete="off">
+            </div>
+            <div class="field member-span-2">
+              <label for="e-network-phone">Phone</label>
+              <input id="e-network-phone" name="network_phone" type="text" maxlength="100" autocomplete="off">
+            </div>
+            <p class="field-note muted member-span-2">These details are for signed-in members and admins, not public visitors. Leaving a booklet field blank will clear it once an admin approves the request.</p>
             <div class="field">
               <label for="e-website">Website</label>
               <input id="e-website" name="website" type="text" maxlength="300">

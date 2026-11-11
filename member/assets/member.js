@@ -50,6 +50,78 @@
 
   function val(id) { return ($(id) && $(id).value) || ''; }
 
+
+  var BOOKLET_FIELDS = [
+    'address',
+    'principal_name', 'principal_email', 'principal_phone',
+    'network_name', 'network_email', 'network_phone'
+  ];
+
+  var FIELD_LABELS = {
+    company_name: 'Company name',
+    contact_person: 'Contact person',
+    website: 'Website',
+    continent: 'Continent',
+    region: 'Region',
+    country: 'Country',
+    city: 'City',
+    ports: 'Ports',
+    description: 'Description',
+    email: 'Email',
+    emails: 'Emails',
+    address: 'Office address',
+    principal_name: 'Principal name',
+    principal_email: 'Principal email',
+    principal_phone: 'Principal phone',
+    network_name: 'Network name',
+    network_email: 'Network email',
+    network_phone: 'Network phone'
+  };
+
+  function fieldLabel(k) {
+    return FIELD_LABELS[k] || String(k || '').replace(/_/g, ' ');
+  }
+
+  function bookletInputId(key, prefix) {
+    return prefix + key.replace(/_/g, '-');
+  }
+
+  function normalizeBookletValue(key, value) {
+    var s = String(value == null ? '' : value).trim();
+    if (key === 'principal_email' || key === 'network_email') s = s.toLowerCase();
+    return s;
+  }
+
+  function validateBookletFields(values) {
+    var emailRe = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+    var phoneRe = /^[+0-9() /.,A-Za-z-]+$/;
+    var limits = {
+      address: 500,
+      principal_name: 200,
+      network_name: 200,
+      principal_phone: 100,
+      network_phone: 100,
+      principal_email: 254,
+      network_email: 254
+    };
+    for (var i = 0; i < BOOKLET_FIELDS.length; i++) {
+      var key = BOOKLET_FIELDS[i];
+      var s = normalizeBookletValue(key, values[key]);
+      if (!s) continue;
+      if (s.length > (limits[key] || 300)) {
+        return { ok: false, error: fieldLabel(key) + ' is too long.' };
+      }
+      if ((key === 'principal_email' || key === 'network_email') && !emailRe.test(s)) {
+        return { ok: false, error: fieldLabel(key) + ' is not a valid email address.' };
+      }
+      if ((key === 'principal_phone' || key === 'network_phone') && !phoneRe.test(s)) {
+        return { ok: false, error: fieldLabel(key) + ' can only use +, digits, spaces, dashes, parentheses, slashes, periods, and letters.' };
+      }
+    }
+    return { ok: true, error: null };
+  }
+
+
   function fillProfile(row, mem) {
     var companyName = (row && row.company_name) || (mem && mem.company_name) || '';
     if (companyName) {
@@ -86,6 +158,9 @@
       }
     }
     setText('mp-description', row && row.description);
+    BOOKLET_FIELDS.forEach(function (key) {
+      setText('mp-' + key.replace(/_/g, '-'), row && row[key]);
+    });
 
     setText('mp-role', mem && mem.my_role);
     var st = $('mp-status');
@@ -125,6 +200,10 @@
     $('e-city').value = row.city || '';
     $('e-ports').value = portsToText(row.ports);
     $('e-description').value = row.description || '';
+    BOOKLET_FIELDS.forEach(function (key) {
+      var el = $(bookletInputId(key, 'e-'));
+      if (el) el.value = row[key] || '';
+    });
   }
 
   function collectChanges() {
@@ -143,6 +222,20 @@
     Object.keys(fields).forEach(function (k) {
       var oldVal = company[k] == null ? '' : String(company[k]);
       if (fields[k] !== oldVal) changes[k] = fields[k];
+    });
+    var booklet = {};
+    BOOKLET_FIELDS.forEach(function (key) {
+      var el = $(bookletInputId(key, 'e-'));
+      booklet[key] = el ? normalizeBookletValue(key, el.value) : '';
+    });
+    var bookletCheck = validateBookletFields(booklet);
+    if (!bookletCheck.ok) {
+      changes.__bookletError = bookletCheck.error;
+      return changes;
+    }
+    BOOKLET_FIELDS.forEach(function (key) {
+      var oldVal = normalizeBookletValue(key, company[key]);
+      if (booklet[key] !== oldVal) changes[key] = booklet[key];
     });
     var newPorts = textToPorts(val('e-ports'));
     var oldPorts = Array.isArray(company.ports) ? company.ports.filter(Boolean) : [];
@@ -206,7 +299,7 @@
       Object.keys(proposed).forEach(function (k) {
         var row = document.createElement('div');
         var dt = document.createElement('dt');
-        dt.textContent = k.replace(/_/g, ' ');
+        dt.textContent = fieldLabel(k);
         var dd = document.createElement('dd');
         dd.textContent = formatChangeVal(proposed[k]);
         row.appendChild(dt);
@@ -259,6 +352,11 @@
     ev.preventDefault();
     showAlert('edit-alert', '', null);
     var changes = collectChanges();
+    if (changes.__bookletError) {
+      showAlert('edit-alert', changes.__bookletError, 'error');
+      return;
+    }
+    delete changes.__bookletError;
     if (changes.__emailsError) {
       showAlert('edit-alert', changes.__emailsError, 'error');
       return;
