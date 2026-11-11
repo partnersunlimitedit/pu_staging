@@ -23,6 +23,10 @@
       // Admin users / roles
       adminListUsers: 'admin_list_users',
       adminSetAdmin: 'admin_set_admin',
+      isSuperAdmin: 'is_super_admin',
+      adminSetUserName: 'admin_set_user_name',
+      adminInviteAuthorize: 'admin_invite_authorize',
+      adminRemoveAuthorize: 'admin_remove_authorize',
       // Member portal (owner + staff)
       myMembership: 'my_membership',
       myCompany: 'my_company',
@@ -39,6 +43,10 @@
       adminLinkUser: 'admin_link_user',
       adminUnlinkUser: 'admin_unlink_user',
       adminSetOwner: 'admin_set_owner'
+    },
+    functions: {
+      inviteAdmin: 'invite-admin',
+      removeAdmin: 'remove-admin'
     },
     tables: {
       profiles: 'profiles',
@@ -117,7 +125,8 @@
   function friendlyAuthError(err, fallback) {
     if (!err) return fallback || 'Something went wrong. Please try again.';
     var code = errorCode(err);
-    // Branch on PostgREST/Postgres error.code (not HTTP status)
+    var msg = String(err.message || err.error_description || '');
+    // Branch on PostgREST/Postgres error.code (and edge-function body codes), not only HTTP status
     if (code === '42501') {
       return 'You are not authorized to do that.';
     }
@@ -125,13 +134,46 @@
       return 'That value is not valid. Check the fields and try again.';
     }
     if (code === '22023') {
+      if (/full_name must be at most 200/i.test(msg)) {
+        return 'Name must be at most 200 characters.';
+      }
+      if (/valid email is required/i.test(msg)) {
+        return 'Enter a valid email address.';
+      }
+      if (/p_user_id/i.test(msg)) {
+        return 'A required value is missing. Please try again.';
+      }
       return 'That value is not valid. Check the fields (for example name, email, location or status) and try again.';
     }
     if (code === 'P0002') {
+      if (/must sign up|have a login first/i.test(msg)) {
+        return 'This person does not have a login yet. Invite them as an admin first.';
+      }
       return 'Record not found. It may have been removed, or the person has no login yet.';
     }
     if (code === '55000') {
+      if (/cannot demote the super admin/i.test(msg)) {
+        return 'The super admin cannot be demoted.';
+      }
+      if (/cannot remove the super admin/i.test(msg)) {
+        return 'The super admin cannot be removed.';
+      }
+      if (/cannot invite the super admin/i.test(msg)) {
+        return 'The super admin account cannot be invited.';
+      }
+      if (/cannot remove the last remaining admin/i.test(msg)) {
+        return 'You cannot remove the last remaining admin.';
+      }
+      if (/user is not an admin/i.test(msg)) {
+        return 'That login is not an admin.';
+      }
       return 'That change is not allowed in the current state. The company may be removed, already have an owner, or this would remove the company owner or the last admin.';
+    }
+    if (code === 'invite_failed') {
+      return 'The invite could not be sent. Please try again.';
+    }
+    if (code === 'disable_failed') {
+      return 'Admin access was revoked, but the login could not be disabled. Try removing this admin again.';
     }
     if (code === 'PU001') {
       return 'This company already has 5 staff logins. Remove one to add another.';
@@ -151,7 +193,6 @@
     if (isRlsError(err)) {
       return 'You are not authorized to do that.';
     }
-    var msg = String(err.message || err.error_description || '');
     if (/invalid login|invalid credentials|email not confirmed/i.test(msg)) {
       return 'Sign-in failed. Check your email and password, or ask an admin to enable your account.';
     }
@@ -208,6 +249,100 @@
     }
   }
 
+  /**
+   * Returns true if the signed-in user is the pinned super admin.
+   * Returns false when not signed in, or if the RPC is missing / unauthorized.
+   */
+  async function checkIsSuperAdmin(client) {
+    var rpcName = CONFIG.rpc.isSuperAdmin;
+    if (!rpcName) return false;
+    try {
+      var rpc = await client.rpc(rpcName);
+      if (!rpc.error) {
+        if (typeof rpc.data === 'boolean') return rpc.data;
+        if (rpc.data != null) return !!rpc.data;
+      }
+    } catch (e) { /* treat as not super admin */ }
+    return false;
+  }
+
+  function firstRpcRow(data) {
+    if (Array.isArray(data)) return data[0] || null;
+    return data || null;
+  }
+
+  /**
+   * Invoke a Supabase Edge Function with the signed-in user's JWT.
+   * Normalizes non-2xx JSON bodies ({ ok:false, code, message }) into err.code.
+   */
+  async function invokeFunction(client, name, body) {
+    var res;
+    try {
+      res = await client.functions.invoke(name, { body: body || {} });
+    } catch (e) {
+      return { data: null, error: e };
+    }
+    if (!res.error) {
+      return { data: res.data, error: null };
+    }
+    var err = res.error;
+    var payload = null;
+    try {
+      if (res.data && typeof res.data === 'object') {
+        payload = res.data;
+      } else if (err.context && typeof err.context.json === 'function') {
+        payload = await err.context.json();
+      } else if (err.context && typeof err.context.clone === 'function') {
+        payload = await err.context.clone().json();
+      }
+    } catch (e) { /* body may be empty */ }
+    var status = 0;
+    try {
+      status = Number((err.context && err.context.status) || err.status || 0);
+    } catch (e2) { status = 0; }
+    var code = (payload && (payload.code || payload.error_code)) || err.code || '';
+    var message = (payload && (payload.message || payload.error)) || err.message || 'Function failed';
+    if (!code && (status === 401 || status === 403)) code = '42501';
+    return {
+      data: null,
+      error: { code: String(code), message: String(message), status: status, raw: payload || null }
+    };
+  }
+
+  async function applyAdminChrome(client, opts) {
+    opts = opts || {};
+    var isSuper = opts.isSuperAdmin;
+    if (typeof isSuper !== 'boolean') {
+      isSuper = await checkIsSuperAdmin(client);
+    }
+    document.querySelectorAll('[data-admin-nav="admins"]').forEach(function (el) {
+      el.hidden = !isSuper;
+    });
+    document.querySelectorAll('[data-admin-dash="admins"]').forEach(function (el) {
+      el.hidden = !isSuper;
+    });
+    var link = document.getElementById('admin-my-company');
+    if (link) {
+      try {
+        var mem = await client.rpc(CONFIG.rpc.myMembership);
+        var row = (!mem.error) ? firstRpcRow(mem.data) : null;
+        link.hidden = !row;
+      } catch (e) {
+        link.hidden = true;
+      }
+    }
+    return isSuper;
+  }
+
+  async function applyMemberChrome(client) {
+    var link = document.getElementById('nav-admin');
+    if (!link) return false;
+    var ok = false;
+    try { ok = await checkIsAdmin(client); } catch (e) { ok = false; }
+    link.hidden = !ok;
+    return ok;
+  }
+
   async function routeAfterSignIn(client) {
     var admin = await checkIsAdmin(client);
     location.replace(admin ? urlFor('adminMembers') : urlFor('memberHome'));
@@ -256,6 +391,10 @@
     getSession: getSession,
     getUser: getUser,
     checkIsAdmin: checkIsAdmin,
+    checkIsSuperAdmin: checkIsSuperAdmin,
+    invokeFunction: invokeFunction,
+    applyAdminChrome: applyAdminChrome,
+    applyMemberChrome: applyMemberChrome,
     routeAfterSignIn: routeAfterSignIn,
     signOut: signOut,
     siteBaseUrl: siteBaseUrl,

@@ -192,7 +192,9 @@
       location.replace(MEMBER_HOME);
       return null;
     }
-    return { session: session, isAdmin: true };
+    var isSuper = await PUAuth.checkIsSuperAdmin(client);
+    await PUAuth.applyAdminChrome(client, { isSuperAdmin: isSuper });
+    return { session: session, isAdmin: true, isSuperAdmin: isSuper };
   }
 
   function signOut() { return PUAuth.signOut(client); }
@@ -754,21 +756,92 @@
 
   /* ---------- ADMINS PAGE ---------- */
   var usersCache = [];
-  var pendingRoleChange = null;
+  var pendingConfirm = null;
+  var pendingRenameUser = null;
+
+  function isSuperUser(u) {
+    return !!(u && u.is_super_admin);
+  }
+
+  function isAdminUser(u) {
+    return !!(u && (u.is_admin || u.role === 'admin'));
+  }
+
+  function hasCompanyLink(u) {
+    return !!(u && (u.member_id != null || u.company_name));
+  }
+
+  function roleBadge(u) {
+    var span = document.createElement('span');
+    if (isSuperUser(u)) {
+      span.className = 'admin-badge is-super';
+      span.textContent = 'Super admin';
+    } else if (isAdminUser(u)) {
+      span.className = 'admin-badge is-active';
+      span.textContent = 'Admin';
+    } else {
+      span.className = 'admin-badge is-member';
+      span.textContent = 'Member';
+    }
+    return span;
+  }
+
+  function fillCompanyCell(el, u) {
+    el.textContent = '';
+    var name = u && u.company_name;
+    if (!name) {
+      el.textContent = '—';
+      return;
+    }
+    var strong = document.createElement('span');
+    strong.className = 'company';
+    strong.textContent = name;
+    el.appendChild(strong);
+    if (u.member_role) {
+      var sub = document.createElement('span');
+      sub.className = 'admin-company-role';
+      sub.textContent = u.member_role;
+      el.appendChild(sub);
+    }
+  }
+
+  function smallBtn(label, className, onClick) {
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = className + ' admin-btn-sm';
+    btn.textContent = label;
+    btn.addEventListener('click', onClick);
+    return btn;
+  }
+
+  function userActions(u) {
+    var wrap = document.createElement('div');
+    wrap.className = 'admin-row-actions';
+    wrap.appendChild(smallBtn('Rename', 'btn btn-outline', function () { openRenameModal(u); }));
+    if (isSuperUser(u)) return wrap;
+    if (isAdminUser(u)) {
+      wrap.appendChild(smallBtn('Remove', 'btn admin-btn-danger', function () { openRemoveModal(u); }));
+    } else {
+      wrap.appendChild(smallBtn('Grant admin', 'btn btn-outline', function () { openGrantModal(u); }));
+    }
+    return wrap;
+  }
+
+  function hideUserStates() {
+    ['admins-loading', 'admins-error', 'admins-empty', 'admins-table-wrap', 'admins-cards'].forEach(function (id) {
+      var el = $(id);
+      if (el) el.hidden = true;
+    });
+  }
 
   async function loadUsers() {
+    hideUserStates();
     var loading = $('admins-loading');
-    var errEl = $('admins-error');
-    var empty = $('admins-empty');
-    var wrap = $('admins-table-wrap');
     if (loading) loading.hidden = false;
-    if (errEl) errEl.hidden = true;
-    if (empty) empty.hidden = true;
-    if (wrap) wrap.hidden = true;
-
     var res = await client.rpc(RPC.adminListUsers);
     if (loading) loading.hidden = true;
     if (res.error) {
+      var errEl = $('admins-error');
       if (errEl) {
         errEl.hidden = false;
         $('admins-error-msg').textContent = friendlyError(res.error, 'Could not load users.');
@@ -791,75 +864,248 @@
     if (!usersCache.length) {
       if (empty) empty.hidden = false;
       if (wrap) wrap.hidden = true;
+      if (cards) cards.hidden = true;
+      $('admins-count').textContent = '0 users';
       return;
     }
     if (empty) empty.hidden = true;
-    if (wrap) wrap.hidden = false;
 
     var isNarrow = window.matchMedia('(max-width: 900px)').matches;
     if (isNarrow && cards) {
-      wrap.hidden = true;
+      if (wrap) wrap.hidden = true;
       cards.hidden = false;
-    } else if (cards) {
-      cards.hidden = true;
+    } else {
+      if (wrap) wrap.hidden = false;
+      if (cards) cards.hidden = true;
     }
 
     usersCache.forEach(function (u) {
       var tr = document.createElement('tr');
-      tr.innerHTML = '<td class="em"></td><td class="nm"></td><td class="rl"></td><td class="cr"></td><td class="ac"></td>';
+      tr.innerHTML = '<td class="em"></td><td class="nm"></td><td class="rl"></td><td class="co"></td><td class="cr"></td><td class="ac"></td>';
       tr.querySelector('.em').textContent = u.email || '—';
       tr.querySelector('.nm').textContent = u.full_name || '—';
-      var badge = document.createElement('span');
-      badge.className = 'admin-badge ' + (u.role === 'admin' ? 'is-active' : 'is-pending');
-      badge.textContent = u.role || 'member';
-      tr.querySelector('.rl').appendChild(badge);
+      tr.querySelector('.rl').appendChild(roleBadge(u));
+      fillCompanyCell(tr.querySelector('.co'), u);
       tr.querySelector('.cr').textContent = fmtDate(u.created_at);
-      var btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = u.role === 'admin' ? 'btn admin-btn-danger' : 'btn btn-outline';
-      btn.style.padding = '.45rem 1rem';
-      btn.style.fontSize = '.85rem';
-      btn.textContent = u.role === 'admin' ? 'Revoke admin' : 'Grant admin';
-      btn.addEventListener('click', function () {
-        openRoleModal(u, u.role !== 'admin');
-      });
-      tr.querySelector('.ac').appendChild(btn);
+      tr.querySelector('.ac').appendChild(userActions(u));
       tbody.appendChild(tr);
+
+      if (cards) {
+        var li = document.createElement('li');
+        li.className = 'admin-card admin-card-static';
+        var top = document.createElement('div');
+        top.className = 'admin-card-top';
+        var h3 = document.createElement('h3');
+        h3.textContent = u.email || '—';
+        top.appendChild(h3);
+        top.appendChild(roleBadge(u));
+        li.appendChild(top);
+        var meta = document.createElement('div');
+        meta.className = 'admin-card-meta';
+        var nameLine = document.createElement('div');
+        nameLine.textContent = 'Name: ' + (u.full_name || '—');
+        meta.appendChild(nameLine);
+        var coLine = document.createElement('div');
+        if (u.company_name) {
+          coLine.textContent = 'Company: ' + u.company_name + (u.member_role ? ' (' + u.member_role + ')' : '');
+        } else {
+          coLine.textContent = 'Company: —';
+        }
+        meta.appendChild(coLine);
+        var crLine = document.createElement('div');
+        crLine.textContent = 'Created: ' + fmtDate(u.created_at);
+        meta.appendChild(crLine);
+        li.appendChild(meta);
+        var actions = userActions(u);
+        actions.className += ' admin-card-actions';
+        li.appendChild(actions);
+        cards.appendChild(li);
+      }
     });
 
     $('admins-count').textContent = usersCache.length + ' user' + (usersCache.length === 1 ? '' : 's');
   }
 
-  function openRoleModal(user, makeAdmin) {
-    pendingRoleChange = { user: user, makeAdmin: makeAdmin };
-    $('admins-modal-title').textContent = makeAdmin ? 'Grant admin?' : 'Revoke admin?';
-    // Avoid dumping email into long-lived strings in logs; show in UI only
-    $('admins-modal-body').textContent = makeAdmin
-      ? 'Grant admin access to this user? They must already have a login.'
-      : 'Revoke admin access for this user? The last remaining admin cannot be demoted.';
+  function closeInviteModal() {
+    var modal = $('admins-invite-modal');
+    if (modal) modal.hidden = true;
+    setBusy($('admins-invite-submit'), false, 'Send invite');
+  }
+
+  function closeRenameModal() {
+    pendingRenameUser = null;
+    var modal = $('admins-rename-modal');
+    if (modal) modal.hidden = true;
+    setBusy($('admins-rename-submit'), false, 'Save name');
+  }
+
+  function closeConfirmModal() {
+    pendingConfirm = null;
+    var modal = $('admins-modal');
+    if (modal) modal.hidden = true;
+    var btn = $('admins-modal-confirm');
+    if (btn) {
+      btn.className = 'btn btn-primary';
+      btn.textContent = 'Confirm';
+      setBusy(btn, false);
+    }
+  }
+
+  function closeAllAdminsModals() {
+    closeInviteModal();
+    closeRenameModal();
+    closeConfirmModal();
+  }
+
+  function anyAdminsModalOpen() {
+    return ($('admins-invite-modal') && !$('admins-invite-modal').hidden) ||
+      ($('admins-rename-modal') && !$('admins-rename-modal').hidden) ||
+      ($('admins-modal') && !$('admins-modal').hidden);
+  }
+
+  function openInviteModal() {
+    showAlert($('admins-invite-alert'), '', null);
+    $('invite-email').value = '';
+    $('invite-name').value = '';
+    $('admins-invite-modal').hidden = false;
+    $('invite-email').focus();
+  }
+
+  function inviteSuccessMessage(data) {
+    data = data || {};
+    if (data.already_admin) return 'This person is already an admin.';
+    if (data.invite_sent) return 'Invite email sent.';
+    if (data.already_had_login) return 'Admin access granted. No extra email was sent because they already have a login.';
+    return 'Admin access granted.';
+  }
+
+  async function submitInvite(e) {
+    e.preventDefault();
+    var email = ($('invite-email').value || '').trim();
+    var name = ($('invite-name').value || '').trim();
+    if (!email) {
+      showAlert($('admins-invite-alert'), 'Enter a valid email address.', 'error');
+      return;
+    }
+    if (name.length > 200) {
+      showAlert($('admins-invite-alert'), 'Name must be at most 200 characters.', 'error');
+      return;
+    }
+    var btn = $('admins-invite-submit');
+    setBusy(btn, true, 'Sending…');
+    showAlert($('admins-invite-alert'), '', null);
+    var body = { email: email };
+    if (name) body.full_name = name;
+    var res = await PUAuth.invokeFunction(client, PUAuth.CONFIG.functions.inviteAdmin, body);
+    setBusy(btn, false, 'Send invite');
+    if (res.error) {
+      showAlert($('admins-invite-alert'), friendlyError(res.error, 'Could not invite this admin.'), 'error');
+      return;
+    }
+    closeInviteModal();
+    showAlert($('admins-alert'), inviteSuccessMessage(res.data), 'ok');
+    await loadUsers();
+  }
+
+  function openRenameModal(u) {
+    pendingRenameUser = u;
+    showAlert($('admins-rename-alert'), '', null);
+    $('rename-name').value = u.full_name || '';
+    $('admins-rename-modal').hidden = false;
+    $('rename-name').focus();
+    $('rename-name').select();
+  }
+
+  async function submitRename(e) {
+    e.preventDefault();
+    if (!pendingRenameUser) return;
+    var name = ($('rename-name').value || '').trim();
+    if (name.length > 200) {
+      showAlert($('admins-rename-alert'), 'Name must be at most 200 characters.', 'error');
+      return;
+    }
+    var btn = $('admins-rename-submit');
+    setBusy(btn, true, 'Saving…');
+    var res = await client.rpc(RPC.adminSetUserName, {
+      p_user_id: pendingRenameUser.id,
+      p_full_name: name
+    });
+    setBusy(btn, false, 'Save name');
+    if (res.error) {
+      showAlert($('admins-rename-alert'), friendlyError(res.error, 'Could not update the name.'), 'error');
+      return;
+    }
+    closeRenameModal();
+    showAlert($('admins-alert'), 'Name updated.', 'ok');
+    await loadUsers();
+  }
+
+  function openGrantModal(u) {
+    pendingConfirm = { type: 'grant', user: u };
+    $('admins-modal-title').textContent = 'Grant admin?';
+    $('admins-modal-body').textContent = 'Grant admin access to this person? They already have a login, so no invite email will be sent and a second account will not be created.';
+    var btn = $('admins-modal-confirm');
+    btn.className = 'btn btn-primary';
+    btn.textContent = 'Grant admin';
     $('admins-modal').hidden = false;
   }
 
-  function closeRoleModal() {
-    pendingRoleChange = null;
-    $('admins-modal').hidden = true;
+  function openRemoveModal(u) {
+    pendingConfirm = { type: 'remove', user: u };
+    $('admins-modal-title').textContent = 'Remove admin?';
+    $('admins-modal-body').textContent = hasCompanyLink(u)
+      ? 'Remove admin access for this person? They are linked to a company, so they will keep their member login and can still sign in as a member.'
+      : 'Remove admin access for this person? They have no company link, so their login will be disabled (not permanently deleted). This can be turned back on later if needed.';
+    var btn = $('admins-modal-confirm');
+    btn.className = 'btn admin-btn-danger';
+    btn.textContent = 'Remove admin';
+    $('admins-modal').hidden = false;
   }
 
-  async function confirmRoleChange() {
-    if (!pendingRoleChange) return;
-    var u = pendingRoleChange.user;
-    var makeAdmin = pendingRoleChange.makeAdmin;
-    closeRoleModal();
+  function removeSuccessMessage(data) {
+    data = data || {};
+    if (data.auth_disabled) {
+      return 'Admin access removed. Their login has been disabled.';
+    }
+    if (data.had_company_link) {
+      return 'Admin access removed. They can still sign in as a member.';
+    }
+    return 'Admin access removed.';
+  }
+
+  async function confirmAdminsAction() {
+    if (!pendingConfirm) return;
+    var action = pendingConfirm;
+    var u = action.user;
+    var btn = $('admins-modal-confirm');
+    setBusy(btn, true, 'Working…');
     showAlert($('admins-alert'), '', null);
-    var res = await client.rpc(RPC.adminSetAdmin, {
-      p_user_id: u.id,
-      p_is_admin: makeAdmin
-    });
-    if (res.error) {
-      showAlert($('admins-alert'), friendlyError(res.error, 'Could not update admin role.'), 'error');
+    var res;
+    if (action.type === 'grant') {
+      if (!u || !u.email) {
+        closeConfirmModal();
+        showAlert($('admins-alert'), 'This user has no email, so admin access cannot be granted this way.', 'error');
+        return;
+      }
+      res = await PUAuth.invokeFunction(client, PUAuth.CONFIG.functions.inviteAdmin, { email: u.email });
+      closeConfirmModal();
+      if (res.error) {
+        showAlert($('admins-alert'), friendlyError(res.error, 'Could not grant admin access.'), 'error');
+        return;
+      }
+      showAlert($('admins-alert'), inviteSuccessMessage(res.data), 'ok');
+    } else if (action.type === 'remove') {
+      res = await PUAuth.invokeFunction(client, PUAuth.CONFIG.functions.removeAdmin, { user_id: u.id });
+      closeConfirmModal();
+      if (res.error) {
+        showAlert($('admins-alert'), friendlyError(res.error, 'Could not remove this admin.'), 'error');
+        return;
+      }
+      showAlert($('admins-alert'), removeSuccessMessage(res.data), 'ok');
+    } else {
+      closeConfirmModal();
       return;
     }
-    showAlert($('admins-alert'), makeAdmin ? 'Admin access granted.' : 'Admin access revoked.', 'ok');
     await loadUsers();
   }
 
@@ -871,13 +1117,30 @@
     if (!auth) return;
 
     $('admin-signout-btn').addEventListener('click', signOut);
+
+    if (!auth.isSuperAdmin) {
+      if ($('admins-forbidden')) $('admins-forbidden').hidden = false;
+      if ($('admins-manage')) $('admins-manage').hidden = true;
+      return;
+    }
+
+    $('admins-manage').hidden = false;
+    $('admins-invite-btn').addEventListener('click', openInviteModal);
+    $('admins-invite-form').addEventListener('submit', submitInvite);
+    $('admins-invite-modal').querySelectorAll('[data-invite-close]').forEach(function (el) {
+      el.addEventListener('click', closeInviteModal);
+    });
+    $('admins-rename-form').addEventListener('submit', submitRename);
+    $('admins-rename-modal').querySelectorAll('[data-rename-close]').forEach(function (el) {
+      el.addEventListener('click', closeRenameModal);
+    });
     $('admins-retry').addEventListener('click', loadUsers);
     $('admins-modal').querySelectorAll('[data-modal-close]').forEach(function (el) {
-      el.addEventListener('click', closeRoleModal);
+      el.addEventListener('click', closeConfirmModal);
     });
-    $('admins-modal-confirm').addEventListener('click', confirmRoleChange);
+    $('admins-modal-confirm').addEventListener('click', confirmAdminsAction);
     document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape' && !$('admins-modal').hidden) closeRoleModal();
+      if (e.key === 'Escape' && anyAdminsModalOpen()) closeAllAdminsModals();
     });
     window.addEventListener('resize', function () {
       if (usersCache.length) renderUsers();

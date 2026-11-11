@@ -549,3 +549,37 @@
   .email-row { grid-template-columns: 1fr; }
   .email-row-actions { padding-bottom: 0; }
 }
+
+/* ---- Admins screen ---- */
+.admin-table-static tbody tr { cursor: default; }
+.admin-table-static tbody tr:hover { background: #fff; }
+.admin-table.admin-table-static tbody td:last-child { white-space: normal; }
+.admin-badge.is-super { background: var(--brand-soft); color: var(--brand-ink); }
+.admin-badge.is-member { background: #f1f5f9; color: #475569; }
+.admin-company-role {
+  display: block;
+  margin-top: .15rem;
+  font-size: .8rem;
+  color: var(--muted);
+  font-weight: 500;
+  text-transform: capitalize;
+}
+.admin-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+  align-items: center;
+}
+.admin-btn-sm {
+  padding: .45rem 1rem;
+  font-size: .85rem;
+}
+.admin-card-static { cursor: default; }
+.admin-card-static:hover { transform: none; }
+.admin-card-actions { margin-top: .85rem; }
+.admin-modal-form {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+.admin-modal-form .admin-modal-actions { margin-top: .15rem; }

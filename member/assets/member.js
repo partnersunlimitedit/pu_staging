@@ -422,6 +422,7 @@
 
     $('member-gate').hidden = true;
     $('member-content').hidden = false;
+    if (PUAuth.applyMemberChrome) await PUAuth.applyMemberChrome(client);
 
     var memRes = await client.rpc(RPC.myMembership);
     if (memRes.error) {

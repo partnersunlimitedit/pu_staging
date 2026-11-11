@@ -122,6 +122,7 @@
     }
     $('staff-gate').hidden = true;
     $('staff-content').hidden = false;
+    if (PUAuth.applyMemberChrome) await PUAuth.applyMemberChrome(client);
 
     $('staff-modal').querySelectorAll('[data-modal-close]').forEach(function (el) {
       el.addEventListener('click', closeModal);

@@ -85,7 +85,9 @@
       location.replace(MEMBER_HOME);
       return null;
     }
-    return { session: session, isAdmin: true };
+    var isSuper = await PUAuth.checkIsSuperAdmin(client);
+    await PUAuth.applyAdminChrome(client, { isSuperAdmin: isSuper });
+    return { session: session, isAdmin: true, isSuperAdmin: isSuper };
   }
 
   function signOut() { return PUAuth.signOut(client); }
