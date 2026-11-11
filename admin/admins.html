@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Admins — Admin — Partners Unlimited</title>
 <meta name="robots" content="noindex, nofollow">
-<meta name="description" content="Manage Partners Unlimited admin users.">
+<meta name="description" content="Invite, rename, and remove Partners Unlimited admin users.">
 <link rel="icon" href="../favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="32x32" href="../favicon-32.png">
 <link rel="apple-touch-icon" href="../apple-touch-icon.png">
@@ -33,8 +33,9 @@
       <a href="members.html" data-admin-nav="list">Members</a>
       <a href="agm.html" data-admin-nav="agm">AGM</a>
       <a href="pending-edits.html" data-admin-nav="edits">Pending edits</a>
-      <a href="admins.html" class="is-active" data-admin-nav="admins">Admins</a>
+      <a href="admins.html" class="is-active" data-admin-nav="admins" hidden>Admins</a>
       <a href="../directory.html">Directory</a>
+      <a href="../member/index.html" id="admin-my-company" hidden>My company</a>
       <button type="button" class="btn btn-primary admin-nav-btn" id="admin-signout-btn">Sign out</button>
     </nav>
   </div>
@@ -47,56 +48,108 @@
       <p class="dir-state-title">Checking access…</p>
     </div>
 
-    <div class="admin-page-head">
-      <div>
-        <p class="eyebrow">Admin</p>
-        <h1 class="section-title" style="margin-bottom:.35rem;">Admins</h1>
-        <p class="muted" id="admins-count">Loading…</p>
+    <div id="admins-forbidden" class="admin-state admin-state-msg" hidden>
+      <p class="dir-state-title">Only the super admin can manage admin accounts</p>
+      <p class="muted">Ordinary admins can still manage members, pending edits, and AGM. Ask the super admin if you need a change to admin access.</p>
+      <a class="btn btn-outline" href="members.html">Back to members</a>
+    </div>
+
+    <div id="admins-manage" hidden>
+      <div class="admin-page-head">
+        <div>
+          <p class="eyebrow">Admin</p>
+          <h1 class="section-title" style="margin-bottom:.35rem;">Admins</h1>
+          <p class="muted" id="admins-count">Loading…</p>
+        </div>
+        <button type="button" class="btn btn-primary" id="admins-invite-btn">Invite admin</button>
       </div>
-    </div>
 
-    <div id="admins-alert" class="admin-alert" hidden role="alert"></div>
+      <div id="admins-alert" class="admin-alert" hidden role="alert"></div>
 
-    <p class="admin-note muted" style="margin-bottom:1.25rem;">
-      Grant or revoke admin for people who already have a login. Inviting new admins (creating accounts) comes later — this screen does not create Auth users.
-    </p>
+      <p class="admin-note muted" style="margin-bottom:1.25rem;">
+        Invite a new admin, or grant admin access to someone who already has a login. One email can be both an admin and a company member. Only the super admin can invite, rename, or remove other admins. The super admin cannot be removed or demoted.
+      </p>
 
-    <div id="admins-loading" class="admin-state" hidden>
-      <div class="dir-spinner" aria-hidden="true"></div>
-      <p>Loading users…</p>
-    </div>
-    <div id="admins-empty" class="admin-state admin-state-msg" hidden>
-      <p class="dir-state-title">No users found</p>
-      <p class="muted">Users appear here after they have signed up / been created in Auth.</p>
-    </div>
-    <div id="admins-error" class="admin-state admin-state-msg" hidden role="alert">
-      <p class="dir-state-title">Could not load users</p>
-      <p class="muted" id="admins-error-msg"></p>
-      <button type="button" class="btn btn-outline" id="admins-retry">Retry</button>
-    </div>
+      <div id="admins-loading" class="admin-state" hidden>
+        <div class="dir-spinner" aria-hidden="true"></div>
+        <p>Loading users…</p>
+      </div>
+      <div id="admins-empty" class="admin-state admin-state-msg" hidden>
+        <p class="dir-state-title">No users found</p>
+        <p class="muted">Users appear here after they have signed up / been created in Auth.</p>
+      </div>
+      <div id="admins-error" class="admin-state admin-state-msg" hidden role="alert">
+        <p class="dir-state-title">Could not load users</p>
+        <p class="muted" id="admins-error-msg"></p>
+        <button type="button" class="btn btn-outline" id="admins-retry">Retry</button>
+      </div>
 
-    <div class="admin-table-wrap" id="admins-table-wrap" hidden>
-      <table class="admin-table" aria-label="Users">
-        <thead>
-          <tr>
-            <th scope="col">Email</th>
-            <th scope="col">Name</th>
-            <th scope="col">Role</th>
-            <th scope="col">Created</th>
-            <th scope="col">Actions</th>
-          </tr>
-        </thead>
-        <tbody id="admins-table-body"></tbody>
-      </table>
+      <div class="admin-table-wrap" id="admins-table-wrap" hidden>
+        <table class="admin-table admin-table-static" aria-label="Users">
+          <thead>
+            <tr>
+              <th scope="col">Email</th>
+              <th scope="col">Name</th>
+              <th scope="col">Role</th>
+              <th scope="col">Company</th>
+              <th scope="col">Created</th>
+              <th scope="col">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="admins-table-body"></tbody>
+        </table>
+      </div>
+      <ul class="admin-cards" id="admins-cards" hidden></ul>
     </div>
-    <ul class="admin-cards" id="admins-cards" hidden></ul>
   </div>
 </main>
+
+<div id="admins-invite-modal" class="admin-modal" hidden>
+  <div class="admin-modal-backdrop" data-invite-close></div>
+  <div class="admin-modal-dialog form-card" role="dialog" aria-modal="true" aria-labelledby="admins-invite-title">
+    <h2 id="admins-invite-title" class="section-title" style="font-size:1.25rem;">Invite admin</h2>
+    <p class="muted">They will get an email to set a password if they do not already have a login. If they already have one, they are granted admin access and no extra email is sent.</p>
+    <form id="admins-invite-form" class="admin-modal-form">
+      <div class="field">
+        <label for="invite-email">Email</label>
+        <input id="invite-email" name="email" type="email" required maxlength="254" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="invite-name">Name <span class="field-hint">(optional)</span></label>
+        <input id="invite-name" name="full_name" type="text" maxlength="200" autocomplete="off">
+      </div>
+      <div id="admins-invite-alert" class="admin-alert" hidden role="alert"></div>
+      <div class="admin-modal-actions">
+        <button type="button" class="btn btn-outline" data-invite-close>Cancel</button>
+        <button type="submit" class="btn btn-primary" id="admins-invite-submit">Send invite</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="admins-rename-modal" class="admin-modal" hidden>
+  <div class="admin-modal-backdrop" data-rename-close></div>
+  <div class="admin-modal-dialog form-card" role="dialog" aria-modal="true" aria-labelledby="admins-rename-title">
+    <h2 id="admins-rename-title" class="section-title" style="font-size:1.25rem;">Rename</h2>
+    <p class="muted" id="admins-rename-intro">Update the display name for this login.</p>
+    <form id="admins-rename-form" class="admin-modal-form">
+      <div class="field">
+        <label for="rename-name">Name</label>
+        <input id="rename-name" name="full_name" type="text" maxlength="200" autocomplete="off">
+      </div>
+      <div id="admins-rename-alert" class="admin-alert" hidden role="alert"></div>
+      <div class="admin-modal-actions">
+        <button type="button" class="btn btn-outline" data-rename-close>Cancel</button>
+        <button type="submit" class="btn btn-primary" id="admins-rename-submit">Save name</button>
+      </div>
+    </form>
+  </div>
+</div>
 
 <div id="admins-modal" class="admin-modal" hidden>
   <div class="admin-modal-backdrop" data-modal-close></div>
   <div class="admin-modal-dialog form-card" role="dialog" aria-modal="true" aria-labelledby="admins-modal-title">
-    <h2 id="admins-modal-title" class="section-title" style="font-size:1.25rem;">Change role?</h2>
+    <h2 id="admins-modal-title" class="section-title" style="font-size:1.25rem;">Confirm</h2>
     <p class="muted" id="admins-modal-body"></p>
     <div class="admin-modal-actions">
       <button type="button" class="btn btn-outline" data-modal-close>Cancel</button>

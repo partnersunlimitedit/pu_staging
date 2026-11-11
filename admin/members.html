@@ -34,8 +34,9 @@
       <a href="members.html" class="is-active" data-admin-nav="list">Members</a>
       <a href="agm.html" data-admin-nav="agm">AGM</a>
       <a href="pending-edits.html" data-admin-nav="edits">Pending edits</a>
-      <a href="admins.html" data-admin-nav="admins">Admins</a>
+      <a href="admins.html" data-admin-nav="admins" hidden>Admins</a>
       <a href="../directory.html">Directory</a>
+      <a href="../member/index.html" id="admin-my-company" hidden>My company</a>
       <button type="button" class="btn btn-outline admin-nav-btn" id="admin-add-btn">Add member</button>
       <button type="button" class="btn btn-primary admin-nav-btn" id="admin-signout-btn">Sign out</button>
     </nav>
@@ -74,9 +75,9 @@
           <h2>Pending edits</h2>
           <p class="muted">Review profile changes submitted by owners.</p>
         </a>
-        <a class="admin-dash-card" href="admins.html">
+        <a class="admin-dash-card" href="admins.html" data-admin-dash="admins" hidden>
           <h2>Admins</h2>
-          <p class="muted">Grant or revoke admin access.</p>
+          <p class="muted">Invite, rename, or remove admin accounts.</p>
         </a>
       </div>
 
