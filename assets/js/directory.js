@@ -1,11 +1,13 @@
 /* Partners Unlimited — Member Directory
    Reads public member listings from Supabase (read-only, public key).
    Filters by location (continent -> country) and a text search (company, city, or port).
-   If a member or admin is signed in, contact person and email are loaded
-   via RPC directory_member_contacts and merged onto cards by id. When the
-   RPC also returns an emails array (main / import / export), those labeled
-   addresses are shown; otherwise the card falls back to the single email
-   field. A copy button is shown only next to an email already on the card. */
+   If a member or admin is signed in, contact details are loaded via RPC
+   directory_member_contacts and merged onto cards by id: contact person,
+   labeled emails (main / import / export, else the single email field),
+   office address, and the principal and network booklet contacts (name,
+   email, phone). Address, booklet contacts, and phone numbers are
+   signed-in only and are never requested on the public members SELECT.
+   A copy button is shown next to an email or phone already on the card. */
 (function () {
   'use strict';
 
@@ -98,7 +100,26 @@
     return s;
   }
 
+  // A single telephone number may become a tel: link. Labelled or combined
+  // values (letters, slashes, two numbers in one field) stay plain text.
+  function safePhone(raw) {
+    if (!raw) return null;
+    var s = String(raw).trim();
+    if (!s || /javascript:/i.test(s)) return null;
+    if (/[a-z\/,;]/i.test(s)) return null;
+    if (s.indexOf('+') > 0) return null;
+    if ((s.match(/\+/g) || []).length > 1) return null;
+    if (!/^\+?[\d\s().-]+$/.test(s)) return null;
+    var digits = s.replace(/\D/g, '');
+    if (digits.length < 7 || digits.length > 15) return null;
+    return s;
+  }
 
+  function telHref(safe) {
+    var num = String(safe).replace(/[^\d+]/g, '');
+    if (!/^\+?\d{7,15}$/.test(num)) return null;
+    return 'tel:' + num;
+  }
 
   var EMAIL_LABELS = { main: 'Main', import: 'Import', export: 'Export' };
 
@@ -134,22 +155,58 @@
     return out.length ? out : null;
   }
 
+  function copyKindLabel(kind, text) {
+    return kind + ' ' + text;
+  }
+
+  function copyButton(text, kind) {
+    var copyBtn = el('button', 'dir-copy-email', 'Copy');
+    copyBtn.type = 'button';
+    copyBtn.setAttribute('data-copy', text);
+    copyBtn.setAttribute('data-copy-kind', kind);
+    copyBtn.setAttribute('aria-label', 'Copy ' + copyKindLabel(kind, text));
+    copyBtn.setAttribute('aria-live', 'polite');
+    copyBtn.addEventListener('click', onCopyClick);
+    return copyBtn;
+  }
+
   function emailControl(email, label) {
     var wrap = el('span', 'dir-email');
     if (label) wrap.appendChild(el('span', 'dir-email-label', label));
     var mail = el('a', null, email);
     mail.href = 'mailto:' + email;
-    var copyBtn = el('button', 'dir-copy-email', 'Copy');
-    copyBtn.type = 'button';
-    copyBtn.setAttribute('data-email', email);
-    copyBtn.setAttribute('aria-label', label
-      ? 'Copy ' + label + ' email address ' + email
-      : 'Copy email address ' + email);
-    copyBtn.setAttribute('aria-live', 'polite');
-    copyBtn.addEventListener('click', onCopyEmailClick);
     wrap.appendChild(mail);
-    wrap.appendChild(copyBtn);
+    wrap.appendChild(copyButton(email, label ? label + ' email address' : 'email address'));
     return wrap;
+  }
+
+  function phoneControl(raw) {
+    var text = String(raw).trim();
+    var wrap = el('span', 'dir-email');
+    var tel = safePhone(text);
+    var href = tel ? telHref(tel) : null;
+    if (href) {
+      var link = el('a', null, text);
+      link.href = href;
+      wrap.appendChild(link);
+    } else {
+      wrap.appendChild(el('span', null, text));
+    }
+    wrap.appendChild(copyButton(text, 'phone number'));
+    return wrap;
+  }
+
+  // Stacked name / email / phone for the Principal and Network booklet contacts.
+  // Omits empty or unsafe values; returns null when nothing remains to show.
+  function contactStack(name, email, phone) {
+    var stack = el('span', 'dir-contact-block');
+    name = (name || '').trim();
+    if (name) stack.appendChild(el('span', 'dir-contact-name', name));
+    var mail = safeEmail(email);
+    if (mail) stack.appendChild(emailControl(mail, null));
+    phone = (phone || '').trim();
+    if (phone) stack.appendChild(phoneControl(phone));
+    return stack.children.length ? stack : null;
   }
 
   // Copy text to the clipboard. Prefer the Clipboard API; fall back to a
@@ -185,9 +242,10 @@
   var COPY_FEEDBACK_MS = 1800;
 
   function restoreCopyButton(btn) {
-    var email = btn.getAttribute('data-email') || '';
+    var text = btn.getAttribute('data-copy') || '';
+    var kind = btn.getAttribute('data-copy-kind') || '';
     btn.textContent = 'Copy';
-    btn.setAttribute('aria-label', 'Copy email address ' + email);
+    btn.setAttribute('aria-label', 'Copy ' + copyKindLabel(kind, text));
     btn.classList.remove('is-copied', 'is-failed');
   }
 
@@ -196,15 +254,17 @@
       clearTimeout(btn._copyTimer);
       btn._copyTimer = null;
     }
-    var email = btn.getAttribute('data-email') || '';
+    var text = btn.getAttribute('data-copy') || '';
+    var kind = btn.getAttribute('data-copy-kind') || '';
+    var label = copyKindLabel(kind, text);
     if (ok) {
       btn.textContent = 'Copied';
-      btn.setAttribute('aria-label', 'Copied ' + email);
+      btn.setAttribute('aria-label', 'Copied ' + label);
       btn.classList.add('is-copied');
       btn.classList.remove('is-failed');
     } else {
       btn.textContent = "Couldn't copy";
-      btn.setAttribute('aria-label', "Couldn't copy " + email);
+      btn.setAttribute('aria-label', "Couldn't copy " + label);
       btn.classList.add('is-failed');
       btn.classList.remove('is-copied');
     }
@@ -214,11 +274,11 @@
     }, COPY_FEEDBACK_MS);
   }
 
-  function onCopyEmailClick(e) {
+  function onCopyClick(e) {
     var btn = e.currentTarget;
-    var email = btn.getAttribute('data-email');
-    if (!email) return;
-    copyText(email).then(function () {
+    var text = btn.getAttribute('data-copy');
+    if (!text) return;
+    copyText(text).then(function () {
       setCopyFeedback(btn, true);
     }).catch(function () {
       setCopyFeedback(btn, false);
@@ -257,8 +317,15 @@
     return current().q.toLowerCase().split(/\s+/).filter(Boolean);
   }
 
-  // Public fields, plus contact_person/email/emails only if already merged onto
-  // the object (signed-in RPC). Public visitors must not search hidden emails.
+  // Public fields, plus signed-in contact fields only if already merged onto
+  // the object (signed-in RPC). Public visitors must not search address,
+  // phones, booklet contacts, or hidden emails.
+  var SEARCH_CONTACT_FIELDS = [
+    'contact_person', 'email', 'address',
+    'principal_name', 'principal_email', 'principal_phone',
+    'network_name', 'network_email', 'network_phone'
+  ];
+
   function searchableText(m) {
     var parts = [
       m.company_name,
@@ -269,8 +336,9 @@
       m.description,
       m.website
     ];
-    if (Object.prototype.hasOwnProperty.call(m, 'contact_person')) parts.push(m.contact_person);
-    if (Object.prototype.hasOwnProperty.call(m, 'email')) parts.push(m.email);
+    SEARCH_CONTACT_FIELDS.forEach(function (key) {
+      if (Object.prototype.hasOwnProperty.call(m, key)) parts.push(m[key]);
+    });
     if (Object.prototype.hasOwnProperty.call(m, 'emails')) {
       var extra = normalizeEmails(m.emails) || [];
       extra.forEach(function (item) {
@@ -386,6 +454,23 @@
       var email = safeEmail(m.email);
       if (email) row('Email', null, emailControl(email, null));
     }
+    var address = Object.prototype.hasOwnProperty.call(m, 'address')
+      ? String(m.address || '').trim()
+      : '';
+    if (address) {
+      var addrNode = el('span', 'dir-address', address);
+      if (/\r|\n/.test(address)) addrNode.classList.add('dir-address-multiline');
+      row('Address', null, addrNode);
+    }
+    var principal = contactStack(m.principal_name, m.principal_email, m.principal_phone);
+    if (principal) row('Principal', null, principal);
+    var networkName = (m.network_name || '').trim();
+    var networkEmail = (m.network_email || '').trim();
+    var networkPhone = (m.network_phone || '').trim();
+    if (networkName || networkEmail || networkPhone) {
+      var network = contactStack(m.network_name, m.network_email, m.network_phone);
+      if (network) row('Network', null, network);
+    }
     if (dl.children.length) li.appendChild(dl);
     else li.classList.add('is-compact');
 
@@ -500,25 +585,30 @@
     }
   }
 
+  var CONTACT_FIELDS = [
+    'contact_person', 'email', 'emails', 'address',
+    'principal_name', 'principal_email', 'principal_phone',
+    'network_name', 'network_email', 'network_phone'
+  ];
+
   function mergeContacts(rows) {
     var byId = {};
     (Array.isArray(rows) ? rows : []).forEach(function (row) {
       if (!row || row.id == null) return;
-      var extra = {
-        contact_person: row.contact_person,
-        email: row.email
-      };
-      // Optional; current TEST RPC may not yet return emails.
-      if (Object.prototype.hasOwnProperty.call(row, 'emails')) extra.emails = row.emails;
+      var extra = {};
+      // Only these contact fields — never copy status, notes, or unknown data.
+      // If the RPC omits a newer field (older shape), that key is left unset.
+      CONTACT_FIELDS.forEach(function (key) {
+        if (Object.prototype.hasOwnProperty.call(row, key)) extra[key] = row[key];
+      });
       byId[String(row.id)] = extra;
     });
     members.forEach(function (m) {
       var extra = byId[String(m.id)];
       if (!extra) return;
-      // Only these contact fields — never copy status, notes, or other private data.
-      m.contact_person = extra.contact_person;
-      m.email = extra.email;
-      if (Object.prototype.hasOwnProperty.call(extra, 'emails')) m.emails = extra.emails;
+      CONTACT_FIELDS.forEach(function (key) {
+        if (Object.prototype.hasOwnProperty.call(extra, key)) m[key] = extra[key];
+      });
     });
   }
 
